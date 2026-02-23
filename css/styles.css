@@ -317,6 +317,56 @@ body {
     align-items: center;
 }
 
+.parallel-coord-plot {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 8px;
+    gap: 8px;
+}
+
+.parallel-filter-controls {
+    position: static;
+    align-self: flex-end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+.parallel-filter-controls button {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #1e293b;
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.parallel-filter-controls button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.parallel-filter-status {
+    color: #475569;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.pc-brush .selection {
+    fill: rgba(37, 99, 235, 0.18);
+    stroke: #2563eb;
+}
+
+.pc-brush .overlay {
+    cursor: ns-resize;
+}
+
 .violin-plot {
     flex-direction: column;
     align-items: stretch;

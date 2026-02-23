@@ -4,12 +4,15 @@
 
 const RESEARCHER_DATA_PATH = "data/dashboard_data.csv";
 let cachedDashboardRows = [];
+let filteredData = [];
 let selectedViolinMetricKey = "cadence_total_steps_min";
+const parallelAxisFilters = {};
 
 const PLOT_LAYOUT = {
     panelWidthVw: 44,
     panelHeightVh: 36,
     marginRatio: { top: 0.07, right: 0.05, bottom: 0.11, left: 0.1 },
+    parallelControlsHeightRatio: 0.14,
     violinControlsHeightRatio: 0.14
 };
 
@@ -65,6 +68,58 @@ function getPlotFrame(panelId, reserveTopRatio = 0) {
     return { width, height, margin, plotWidth, plotHeight };
 }
 
+function rowPassesParallelFilters(row, dimensions) {
+    for (const dimension of dimensions) {
+        const range = parallelAxisFilters[dimension];
+        if (!range) continue;
+        const value = row[dimension];
+        if (!Number.isFinite(value) || value < range[0] || value > range[1]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function updateParallelFilterControls(activeFilterCount, filteredCount, totalCount) {
+    const controlsEl = document.getElementById("parallel-filter-controls");
+    if (!controlsEl) return;
+
+    const statusEl = controlsEl.querySelector(".parallel-filter-status");
+    if (statusEl) {
+        if (activeFilterCount > 0) {
+            statusEl.textContent = `${filteredCount}/${totalCount} rows in filter`; 
+        } else {
+            statusEl.textContent = `No active filters (${totalCount} rows)`;
+        }
+    }
+
+}
+
+async function syncFilteredDatasetFromParallel(weekData, dimensions) {
+    const activeFilterCount = Object.values(parallelAxisFilters).filter((range) => Array.isArray(range) && range.length === 2).length;
+
+    if (!activeFilterCount) {
+        filteredData = cachedDashboardRows.slice();
+    } else {
+        const includedWeeks = new Set(
+            weekData
+                .filter((row) => rowPassesParallelFilters(row, dimensions))
+                .map((row) => row.week)
+        );
+
+        filteredData = cachedDashboardRows.filter((row) => {
+            const week = Number(row.week);
+            return Number.isFinite(week) && includedWeeks.has(week);
+        });
+    }
+
+    updateParallelFilterControls(activeFilterCount, filteredData.length, cachedDashboardRows.length);
+    await Promise.all([
+        renderLinePlotWithStd(filteredData),
+        renderScatterPlotMatrix(filteredData)
+    ]);
+}
+
 async function renderParallelCoordinatesPlot(rows) {
     if (!window.d3) {
         console.error("D3 did not load. The parallel coordinates plot cannot render.");
@@ -74,7 +129,23 @@ async function renderParallelCoordinatesPlot(rows) {
     const container = d3.select("#parallel-coord-plot");
     container.selectAll("*").remove();
 
-    const frame = getPlotFrame("parallel-coord-plot");
+    const controls = container
+        .append("div")
+        .attr("class", "parallel-filter-controls")
+        .attr("id", "parallel-filter-controls");
+
+    controls
+        .append("button")
+        .attr("type", "button")
+        .text("Reset filters")
+        .on("click", async () => {
+            Object.keys(parallelAxisFilters).forEach((dimension) => delete parallelAxisFilters[dimension]);
+            await renderParallelCoordinatesPlot(cachedDashboardRows);
+        });
+
+    controls.append("div").attr("class", "parallel-filter-status");
+
+    const frame = getPlotFrame("parallel-coord-plot", PLOT_LAYOUT.parallelControlsHeightRatio);
     if (!frame) return;
     const { width, height, margin, plotWidth, plotHeight } = frame;
 
@@ -154,7 +225,13 @@ async function renderParallelCoordinatesPlot(rows) {
         .sort((a, b) => a.week - b.week);
 
     if (!data.length) {
-        container.text("No W/TUG data available.");
+        container.append("div").attr("class", "parallel-empty").text("No W/TUG data available.");
+        filteredData = cachedDashboardRows.slice();
+        updateParallelFilterControls(0, filteredData.length, cachedDashboardRows.length);
+        await Promise.all([
+            renderLinePlotWithStd(filteredData),
+            renderScatterPlotMatrix(filteredData)
+        ]);
         return;
     }
 
@@ -181,17 +258,21 @@ async function renderParallelCoordinatesPlot(rows) {
         .x(([dimension]) => x(dimension))
         .y(([dimension, value]) => yByDimension[dimension](value));
 
-    chart
+    const lineSelection = chart
         .selectAll(".pc-line")
         .data(data)
         .enter()
         .append("path")
         .attr("class", "pc-line")
         .attr("fill", "none")
-        .attr("stroke", "#3b82f6")
-        .attr("stroke-width", 1.2)
-        .attr("opacity", 0.45)
         .attr("d", (row) => line(dimensions.map((dimension) => [dimension, row[dimension]])));
+
+    const applyLineStyles = () => {
+        lineSelection
+            .attr("stroke", (row) => (rowPassesParallelFilters(row, dimensions) ? "#2563eb" : "#9ca3af"))
+            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.3 : 1.1))
+            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.62 : 0.15));
+    };
 
     const axis = chart
         .selectAll(".pc-axis")
@@ -211,6 +292,40 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("fill", "#111")
         .style("font-size", "12px")
         .text((dimension) => dimension);
+
+    let isRestoringBrush = false;
+    axis.each(function(dimension) {
+        const axisGroup = d3.select(this);
+        const brush = d3
+            .brushY()
+            .extent([[-10, 0], [10, plotHeight]])
+            .on("brush end", async (event) => {
+                if (isRestoringBrush) return;
+
+                if (!event.selection) {
+                    delete parallelAxisFilters[dimension];
+                } else {
+                    const [top, bottom] = event.selection;
+                    const max = yByDimension[dimension].invert(top);
+                    const min = yByDimension[dimension].invert(bottom);
+                    parallelAxisFilters[dimension] = [Math.min(min, max), Math.max(min, max)];
+                }
+
+                applyLineStyles();
+                await syncFilteredDatasetFromParallel(data, dimensions);
+            });
+
+        const brushGroup = axisGroup.append("g").attr("class", "pc-brush").call(brush);
+        const range = parallelAxisFilters[dimension];
+        if (range) {
+            isRestoringBrush = true;
+            brushGroup.call(brush.move, [yByDimension[dimension](range[1]), yByDimension[dimension](range[0])]);
+            isRestoringBrush = false;
+        }
+    });
+
+    applyLineStyles();
+    await syncFilteredDatasetFromParallel(data, dimensions);
 }
 
 function getStandardDeviation(array) {
@@ -227,7 +342,7 @@ async function renderLinePlotWithStd(rows) {
     }
 
     const container = d3.select("#line-plot-with-std");
-    container.selectAll("*").remove();
+    container.html("");
 
     const frame = getPlotFrame("line-plot-with-std");
     if (!frame) return;
@@ -357,7 +472,7 @@ async function renderLinePlotWithStd(rows) {
     });
 }
 
-async function renderScatterPlotMatrix() {
+async function renderScatterPlotMatrix(rows = []) {
     if (!window.d3) {
         console.error("D3 did not load. The scatter plot cannot render.");
         return;
@@ -370,7 +485,7 @@ async function renderScatterPlotMatrix() {
         .append("div")
         .style("font-size", "14px")
         .style("color", "#475569")
-        .text("scatter-plot-matrix");
+        .text(`scatter-plot-matrix (${rows.length} rows)`);
 }
 
 function metricLabel(metricKey) {
@@ -544,12 +659,10 @@ function kernelEpanechnikov(k) {
 async function renderDashboard() {
     const rows = await d3.csv(RESEARCHER_DATA_PATH);
     cachedDashboardRows = rows;
-    await Promise.all([
-        renderParallelCoordinatesPlot(rows),
-        renderLinePlotWithStd(rows),
-        renderScatterPlotMatrix(),
-        renderViolinPlot(rows)
-    ]);
+    filteredData = rows.slice();
+
+    await renderParallelCoordinatesPlot(cachedDashboardRows);
+    await renderViolinPlot(cachedDashboardRows);
 }
 
 function debounce(fn, waitMs) {
