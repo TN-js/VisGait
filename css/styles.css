@@ -393,7 +393,7 @@ body {
     padding: 24px;
     display: flex;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .researcher-box {
@@ -402,21 +402,22 @@ body {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 1.4vh;
+    gap: 16px;
+    align-items: stretch;
 }
 
 .parallel-coord-plot,
 .line-plot-with-std,
 .scatter-plot-matrix,
 .violin-plot {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        min-height: 0;
-        overflow: hidden;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: flex-start;
+    align-items: stretch;
 }
 
 .modal-overlay {
@@ -456,6 +457,21 @@ body {
     justify-content: flex-start;
     padding: 8px;
     gap: 8px;
+}
+
+.parallel-scroll-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    cursor: grab;
+    border: 1px solid #eef2f7;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.parallel-scroll-wrap:active {
+    cursor: grabbing;
 }
 
 .parallel-filter-controls {
@@ -593,10 +609,15 @@ body {
 }
 
 .violin-plot svg,
-.parallel-coord-plot svg,
 .line-plot-with-std svg,
 .scatter-plot-matrix svg {
     width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.parallel-scroll-wrap svg {
+    width: auto;
     height: 100%;
     display: block;
 }
