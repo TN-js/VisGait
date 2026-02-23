@@ -320,7 +320,7 @@ function renderRadarCharts(isEnlarged = false) {
 
     const activityScores = ACTIVITIES.map(act => {
         const entry = activityDataSets[act].find(d => d.week === selectedWeek);
-        return { axis: act, value: entry ? entry.composite_score : 0 };
+        return { axis: act, displayName: ACTIVITY_NAMES[act] || act, value: entry ? entry.composite_score : 0 };
     });
 
     // helper to compute metric values and draw metric radar for a given activity
@@ -362,7 +362,18 @@ function drawRadar(containerId, data, onClick, size) {
 
     // Levels
     for(let j=0; j<cfg.levels; j++) {
-        svg.append("circle").attr("r", radius * ((j+1)/cfg.levels)).attr("fill", "none").attr("stroke", "#cbd5e1").attr("stroke-dasharray", "3,3");
+        const r = radius * ((j+1)/cfg.levels);
+        svg.append("circle").attr("r", r).attr("fill", "none").attr("stroke", "#cbd5e1").attr("stroke-dasharray", "3,3");
+        
+        // Scale labels (top of the circle)
+        const levelValue = Math.round(cfg.maxValue * ((j + 1) / cfg.levels));
+        svg.append("text")
+            .attr("class", "radar-scale-label")
+            .attr("text-anchor", "middle")
+            .attr("x", 0)
+            .attr("y", -r)
+            .attr("dy", "-0.25em")
+            .text(levelValue);
     }
 
     // Axes & Labels
@@ -370,7 +381,7 @@ function drawRadar(containerId, data, onClick, size) {
     axis.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
         .attr("x", (d, i) => rScale(115) * Math.cos(angleSlice*i - Math.PI/2))
         .attr("y", (d, i) => rScale(115) * Math.sin(angleSlice*i - Math.PI/2))
-        .text(d => d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
+        .text(d => d.displayName || d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
         .on("click", onClick ? (e, d) => onClick({axis: d.axis}) : null);
 
     // Polygon with enter transition
