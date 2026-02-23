@@ -91,6 +91,12 @@ body {
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
+/* Ensure viz boxes fill vertical space when placed in a grid row */
+.viz-box {
+    display: flex;
+    flex-direction: column;
+}
+
 .viz-row {
     display: flex;
     flex-direction: column;
@@ -286,3 +292,47 @@ body {
     z-index: 3000; /* Ensure tooltip is visible even over the Modal */
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
 }
+
+/* --- Composite Weighting Slider --- */
+.weight-seg {
+    flex: 0 0 auto;
+    width: 25%; /* initial; will be overridden by JS */
+}
+
+.weight-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    opacity: 0; /* hide native track, we only use the thumb value */
+    pointer-events: none; /* disable native pointer handling to allow custom thumb dragging */
+}
+
+.weight-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #e6eef8;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.12), 0 2px 6px rgba(0,0,0,0.08);
+    z-index: 30;
+    pointer-events: auto;
+    cursor: grab;
+}
+.weight-thumb:active { cursor: grabbing; }
+
+#weight-track { width: 100%; border-radius: 8px; }
+
+#weight-legend { font-size: 14px; color: #0f172a; }
+.legend-row { display:flex; align-items:center; gap:10px; }
+.legend-swatch { width:18px; height:12px; border-radius:4px; }
+.legend-label { font-weight:600; color:#334155; flex:1; }
+.legend-weight { font-weight:700; color:#0f172a; }
+
+/* Line chart container helps the svg size and centering */
+#line-chart { display:flex; justify-content:center; align-items:center; width:100%; flex:1; }
+#line-chart svg { width:100%; height:100%; }

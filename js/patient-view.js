@@ -16,6 +16,11 @@ let activityDataSets = {};
 let selectedPatientId = 1;
 let selectedWeek = null;
 let selectedActivity = "W"; 
+// Weighting state and derived data
+let sliderPositions = [25, 50, 75]; // three handles (percents)
+let currentWeights = [25, 25, 25, 25];
+let derivedCompositeData = []; // globalCompositeData remapped by currentWeights
+const ACTIVITY_COLORS = { "SC": "#f59e0b", "STS": "#3b82f6", "TUG": "#06b6d4", "W": "#7c3aed" };
 
 const tooltip = d3.select("body").append("div").attr("class", "d3-tooltip").style("opacity", 0);
 const scoreColorScale = d3.scaleLinear()
@@ -75,6 +80,9 @@ async function loadUserData(userId) {
         ACTIVITIES.forEach((act, i) => { activityDataSets[act] = results[i]; });
 
         selectedWeek = d3.max(globalCompositeData, d => d.week);
+        // compute initial derived composite using default weights
+        computeDerivedComposite();
+        setupCompositeWeightingUI();
         updatePatientView();
     } catch (err) { console.error("Error loading user data:", err); }
 }
@@ -83,12 +91,11 @@ async function loadUserData(userId) {
  * 3. CORE VIEW UPDATES
  */
 function updatePatientView() {
-    const weekData = globalCompositeData.find(d => d.week === selectedWeek);
+    const weekData = derivedCompositeData.find(d => d.week === selectedWeek) || globalCompositeData.find(d => d.week === selectedWeek);
     if (!weekData) return;
-
     d3.select("#patient-name-header").text(`Patient ${selectedPatientId}`);
     updateSummaryHeader(weekData);
-    renderLineChart(globalCompositeData);
+    renderLineChart(derivedCompositeData.length ? derivedCompositeData : globalCompositeData);
     renderActivityBars(selectedWeek);
     renderRadarCharts();
 }
@@ -114,7 +121,10 @@ function renderActivityBars(week) {
         const color = scoreColorScale(score);
 
         const row = container.append("div").style("display", "flex").style("align-items", "center").style("gap", "15px").style("margin-bottom", "10px");
-        row.append("div").style("width", "140px").style("font-size", "14px").style("font-weight", "600").text(ACTIVITY_NAMES[act]);
+        // label with colored swatch
+        const labelWrap = row.append("div").style("width", "140px").style("font-size", "14px").style("font-weight", "600").style("display","flex").style("align-items","center").style("gap","10px");
+        labelWrap.append("div").style("width","12px").style("height","12px").style("border-radius","50%").style("background", ACTIVITY_COLORS[act]);
+        labelWrap.append("div").style("flex","1").style("text-overflow","ellipsis").style("overflow","hidden").style("white-space","nowrap").text(ACTIVITY_NAMES[act]);
         
         const barBg = row.append("div").style("flex", "1").style("background", "#f1f5f9").style("height", "12px").style("border-radius", "6px").style("overflow", "hidden");
         barBg.append("div").style("width", "0%").style("height", "100%").style("background", color)
@@ -124,19 +134,161 @@ function renderActivityBars(week) {
     });
 }
 
+/* ------------------ Composite Weighting UI & Logic ------------------ */
+function setupCompositeWeightingUI() {
+    try {
+        const h1 = document.getElementById('handle-1');
+        const h2 = document.getElementById('handle-2');
+        const h3 = document.getElementById('handle-3');
+        const t1 = document.getElementById('thumb-1');
+        const t2 = document.getElementById('thumb-2');
+        const t3 = document.getElementById('thumb-3');
+        const segs = [document.getElementById('seg-0'), document.getElementById('seg-1'), document.getElementById('seg-2'), document.getElementById('seg-3')];
+        const legend = document.getElementById('weight-legend');
+
+        function updateFromPositions() {
+            const p1 = +h1.value; const p2 = +h2.value; const p3 = +h3.value;
+            // enforce ordering and 1-unit edge spacing
+            if (p1 >= p2) h1.value = p2 - 1;
+            if (p1 < 1) h1.value = 1;
+            if (p2 <= p1) h2.value = +h1.value + 1;
+            if (p2 >= p3) h2.value = p3 - 1;
+            if (p3 > 99) h3.value = 99;
+            if (p3 <= p2) h3.value = +h2.value + 1;
+
+            sliderPositions = [+h1.value, +h2.value, +h3.value];
+            // raw segments based on positions
+            const raw = [sliderPositions[0], sliderPositions[1] - sliderPositions[0], sliderPositions[2] - sliderPositions[1], 100 - sliderPositions[2]];
+            // subtract 1 reserved unit from each segment so 0% becomes achievable
+            const effective = raw.map(v => Math.max(0, v - 1));
+            const sumEff = effective.reduce((s, x) => s + x, 0);
+            if (sumEff > 0) {
+                currentWeights = effective.map(v => (v / sumEff) * 100);
+            } else {
+                currentWeights = [25, 25, 25, 25];
+            }
+
+            // update segments width and colors
+            segs.forEach((s, i) => { s.style.width = currentWeights[i] + '%'; s.style.background = ACTIVITY_COLORS[ACTIVITIES[i]]; });
+
+            // update thumbs positions
+            t1.style.left = `${sliderPositions[0]}%`;
+            t2.style.left = `${sliderPositions[1]}%`;
+            t3.style.left = `${sliderPositions[2]}%`;
+
+            // update legend
+            legend.innerHTML = '';
+            ACTIVITIES.forEach((act, i) => {
+                const row = document.createElement('div'); row.className = 'legend-row';
+                const sw = document.createElement('div'); sw.className = 'legend-swatch'; sw.style.background = ACTIVITY_COLORS[act];
+                const label = document.createElement('div'); label.className = 'legend-label'; label.textContent = ACTIVITY_NAMES[act];
+                const weight = document.createElement('div'); weight.className = 'legend-weight'; weight.textContent = `${Math.round(currentWeights[i])}%`;
+                row.appendChild(sw); row.appendChild(label); row.appendChild(weight);
+                legend.appendChild(row);
+            });
+
+            // recompute derived composite and update views
+            computeDerivedComposite();
+            updatePatientView();
+        }
+
+        // keyboard/input support (for accessibility)
+        [h1, h2, h3].forEach(h => h.addEventListener('input', () => updateFromPositions()));
+
+        // Add pointer drag support on visible thumbs so each handle is independently draggable
+        let draggingIndex = -1;
+        const track = document.getElementById('weight-track');
+        function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+        function posToPercent(clientX) {
+            const rect = track.getBoundingClientRect();
+            const x = clamp(clientX - rect.left, 0, rect.width);
+            return (x / rect.width) * 100;
+        }
+
+        function startDrag(i, e) {
+            e.preventDefault();
+            draggingIndex = i;
+            document.body.style.userSelect = 'none';
+        }
+
+        let rafPending = false;
+        function onMove(e) {
+            if (draggingIndex === -1) return;
+            const pct = posToPercent(e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX));
+            // determine neighbor bounds
+            const leftBound = draggingIndex === 0 ? 1 : sliderPositions[draggingIndex - 1] + 1;
+            const rightBound = draggingIndex === 2 ? 99 : sliderPositions[draggingIndex + 1] - 1;
+            const clamped = clamp(pct, leftBound, rightBound);
+            // update underlying input value (fast)
+            if (draggingIndex === 0) h1.value = Math.round(clamped);
+            if (draggingIndex === 1) h2.value = Math.round(clamped);
+            if (draggingIndex === 2) h3.value = Math.round(clamped);
+            // throttle heavy updates to animation frames to avoid layout thrashing
+            if (!rafPending) {
+                rafPending = true;
+                requestAnimationFrame(() => { updateFromPositions(); rafPending = false; });
+            }
+        }
+
+        function endDrag() { draggingIndex = -1; document.body.style.userSelect = ''; }
+
+        [t1, t2, t3].forEach((t, i) => {
+            t.addEventListener('pointerdown', (e) => startDrag(i, e));
+        });
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', endDrag);
+
+        // reset button handler
+        const resetBtn = document.getElementById('reset-weights');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                h1.value = 25; h2.value = 50; h3.value = 75;
+                updateFromPositions();
+            });
+        }
+
+        // initial update
+        updateFromPositions();
+    } catch (e) { console.warn('Composite weighting UI setup failed', e); }
+}
+
+function computeDerivedComposite() {
+    if (!globalCompositeData || !globalCompositeData.length) return;
+    derivedCompositeData = globalCompositeData.map(row => {
+        const week = row.week;
+        const scores = ACTIVITIES.map(act => {
+            const r = (activityDataSets[act] || []).find(d => d.week === week);
+            return r ? (+r.composite_score || 0) : 0;
+        });
+        const combined = scores.reduce((acc, s, i) => acc + (s * (currentWeights[i] / 100)), 0);
+        return { ...row, composite_score_overall: combined };
+    });
+}
+
 /**
  * 5. CHARTS: LINE & RADAR
  */
-function renderLineChart(data, target = "#line-chart", w = 700, h = 300) {
-    const margin = {top: 20, right: 30, bottom: 40, left: 50}, width = w - margin.left - margin.right, height = h - margin.top - margin.bottom;
+function renderLineChart(data, target = "#line-chart", defaultW = 700, h = 300) {
     const container = d3.select(target);
     container.selectAll("*").remove();
-    
-    const svg = container.append("svg").attr("width", w).attr("height", h).append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // determine width from container so chart spans the box responsively
+    const parentNode = container.node();
+    const availableW = parentNode ? Math.max(parentNode.clientWidth, 300) : defaultW;
+    const margin = {top: 20, right: 30, bottom: 40, left: 50}, width = availableW - margin.left - margin.right, height = h - margin.top - margin.bottom;
+
+    const svg = container.append("svg")
+        .attr("width", availableW)
+        .attr("height", h)
+        .attr("viewBox", `0 0 ${availableW} ${h}`)
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
     const x = d3.scaleLinear().domain(d3.extent(data, d => d.week)).range([0, width]);
     const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
 
-    svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(data.length));
+    svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(Math.max(data.length, 4)));
     svg.append("g").call(d3.axisLeft(y));
 
     const line = d3.line().x(d => x(d.week)).y(d => y(d.composite_score_overall));
@@ -145,7 +297,20 @@ function renderLineChart(data, target = "#line-chart", w = 700, h = 300) {
     svg.selectAll("circle").data(data).enter().append("circle")
         .attr("cx", d => x(d.week)).attr("cy", d => y(d.composite_score_overall)).attr("r", 5)
         .attr("fill", d => d.week === selectedWeek ? "#f59e0b" : "#3b82f6")
-        .on("click", (e, d) => { selectedWeek = d.week; updatePatientView(); });
+        .style('cursor','pointer')
+        .on("click", (e, d) => { selectedWeek = d.week; updatePatientView(); })
+        .on('mouseover', (e, d) => {
+            // use dark tooltip style for line chart
+            tooltip.style('background', '#1e293b').style('color', '#ffffff').style('padding', '8px 10px').style('border', 'none').style('min-width','60px');
+            const wk = d && d.week ? d.week : '?';
+            const score = d && isFinite(d.composite_score_overall) ? Math.round(d.composite_score_overall) : 0;
+            tooltip.style('opacity', 1).html(`<strong>Week ${wk}</strong><br/>${score}`)
+                .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        })
+        .on('mousemove', (e) => {
+            tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        })
+        .on('mouseout', () => { tooltip.style('opacity', 0); });
 }
 
 function renderRadarCharts(isEnlarged = false) {
@@ -164,10 +329,16 @@ function renderRadarCharts(isEnlarged = false) {
     }, size);
 
     const actWeekData = activityDataSets[selectedActivity]?.find(d => d.week === selectedWeek);
-    const metricValues = (ACTIVITY_METRICS[selectedActivity] || []).map(k => ({
-        axis: k.replace(/_norm|_pct/g, '').replace(/_/g, ' '),
-        value: (actWeekData ? actWeekData[k] : 0) * 100
-    }));
+    const metricValues = (ACTIVITY_METRICS[selectedActivity] || []).map(k => {
+        const axisRaw = k.replace(/_norm|_pct/g, '').replace(/_/g, ' ').trim();
+        const axis = axisRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const value = (function(){
+            const raw = actWeekData ? actWeekData[k] : 0;
+            const n = Number(raw);
+            return (isFinite(n) ? n : 0) * 100;
+        })();
+        return { axis, value };
+    });
 
     drawRadar(targetMet, [{ values: metricValues }], null, size);
 }
@@ -193,12 +364,49 @@ function drawRadar(containerId, data, onClick, size) {
     axis.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
         .attr("x", (d, i) => rScale(115) * Math.cos(angleSlice*i - Math.PI/2))
         .attr("y", (d, i) => rScale(115) * Math.sin(angleSlice*i - Math.PI/2))
-        .text(d => d.axis).style("font-size", "11px").style("cursor", onClick ? "pointer" : "default")
+        .text(d => d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
         .on("click", onClick ? (e, d) => onClick({axis: d.axis}) : null);
 
     // Polygon
     const radarLine = d3.lineRadial().radius(d => rScale(d.value)).angle((d, i) => i * angleSlice).curve(d3.curveLinearClosed);
-    svg.append("path").datum(data[0].values).attr("d", radarLine).attr("fill", "#3b82f6").attr("fill-opacity", 0.3).attr("stroke", "#3b82f6").attr("stroke-width", 2);
+    // choose color: if axes map to activities use their color, otherwise use selectedActivity color
+    const polygonColor = (data[0].values.every(v => ACTIVITY_COLORS[v.axis])) ? (ACTIVITY_COLORS[data[0].values[0].axis] || '#3b82f6') : (ACTIVITY_COLORS[selectedActivity] || '#3b82f6');
+    svg.append("path").datum(data[0].values).attr("d", radarLine).attr("fill", polygonColor).attr("fill-opacity", 0.25).attr("stroke", polygonColor).attr("stroke-width", 2);
+
+    // Points (drawn per-vertex) with tooltip and activity-color mapping
+    try {
+        // ensure tooltip has sensible inline styles if stylesheet is missing
+        tooltip.style("position", "absolute").style("pointer-events", "none").style("background", "#ffffff").style("color", "#0f172a").style("padding", "6px 8px").style("border", "1px solid #e2e8f0").style("border-radius", "6px").style("font-size", "12px").style("min-width","36px");
+
+        svg.selectAll('.radar-point').data(data[0].values).enter().append('circle')
+            .attr('class', 'radar-point')
+            .attr('r', 5)
+            .attr('cx', (d, i) => rScale(d.value) * Math.cos(angleSlice*i - Math.PI/2))
+            .attr('cy', (d, i) => rScale(d.value) * Math.sin(angleSlice*i - Math.PI/2))
+            .attr('fill', (d) => {
+                if (ACTIVITY_COLORS[d.axis]) return ACTIVITY_COLORS[d.axis];
+                return polygonColor;
+            })
+            .style('cursor', onClick ? 'pointer' : 'default')
+            .on('mouseover', (e, d) => {
+                // show full activity name if available (e.g., SC -> Stair Climbing)
+                const code = d && d.axis ? d.axis : 'Value';
+                const label = ACTIVITY_NAMES[code] || code;
+                const val = d && isFinite(d.value) ? Math.round(d.value) : 0;
+                tooltip.style('opacity', 1).html('<strong>' + label + '</strong><br/>' + val + '%')
+                    .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+            })
+            .on('mousemove', (e) => {
+                tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+            })
+            .on('mouseout', () => {
+                tooltip.style('opacity', 0);
+            });
+        // allow clicking points to trigger the same onClick as axis labels (switch activity)
+        if (onClick) {
+            svg.selectAll('.radar-point').on('click', (e, d) => { try { onClick({ axis: d.axis }); } catch (err) { /* ignore */ } });
+        }
+    } catch (e) { console.warn('Radar points / tooltip setup failed', e); }
 }
 
 /**
