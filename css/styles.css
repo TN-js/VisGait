@@ -421,6 +421,7 @@ body {
 }
 
 .scatter-plot-matrix {
+    /* makes the checkbox panel sit on the left and the chart fill the rest */
     flex-direction: row;
     align-items: stretch;
 }
@@ -504,6 +505,7 @@ body {
 }
 
 .scatter-controls {
+    /* border-right draws the dividing line between the panel and the chart */
     width: 156px;
     min-width: 156px;
     padding: 8px;
@@ -517,6 +519,7 @@ body {
 }
 
 .scatter-controls-label {
+    /* styles the "Metrics" label at the top of the checkbox panel */
     font-size: 11px;
     font-weight: 700;
     color: #1e3a8a;
@@ -526,6 +529,7 @@ body {
 }
 
 .scatter-check-label {
+    /* highlights each metric row as a compact interactive toggle target */
     display: flex;
     align-items: center;
     gap: 6px;
@@ -537,10 +541,12 @@ body {
 }
 
 .scatter-check-label:hover {
+    /* highlights it blue on hover */
     background: #e8efff;
 }
 
 .scatter-svg-wrap {
+    /* tells this element to grow and fill whatever space is left after the fixed panel */
     flex: 1;
     min-width: 0;
     min-height: 0;
@@ -597,6 +603,7 @@ body {
 }
 
 .vis-tooltip {
+    /* always appears right at the cursor position */
     display: none;
     position: fixed;
     background: rgba(20, 20, 40, 0.9);

@@ -5,8 +5,10 @@
 const RESEARCHER_DATA_PATH = "data/dashboard_data.csv";
 let cachedDashboardRows = [];
 let filteredData = [];
+// Violin filter state
 let violinActivity = "All";
 let violinGroup = "All";
+// Default scatter matrix metric selection shown on first render
 let selectedScatterMetricKeys = ["composite_score", "GSI_pct", "step_time_cv_pct", "symmetry_ratio"];
 const parallelAxisFilters = {};
 
@@ -34,6 +36,7 @@ const GROUP_COLORS = {
     stable: "#3498db"
 };
 
+// Scatter matrix: all available metrics
 const SCATTER_METRICS = [
     { key: "composite_score", name: "Composite Score" },
     { key: "GSI_pct", name: "GSI (%)" },
@@ -501,6 +504,8 @@ async function renderLinePlotWithStd(rows) {
     });
 }
 
+// Called on researcher load and checkbox changes:
+// builds the metric checkbox panel and draws the scatter matrix from active selections.
 async function renderScatterPlotMatrix(rows = []) {
     if (!window.d3) {
         console.error("D3 did not load. The scatter plot cannot render.");
@@ -572,6 +577,7 @@ async function renderScatterPlotMatrix(rows = []) {
                         selectedScatterMetricKeys.push(metric.key);
                     }
                 } else {
+                    // Keep at least 2 active metrics; fewer cannot form a scatter comparison.
                     if (selectedScatterMetricKeys.length <= 2) {
                         this.checked = true;
                         return;
@@ -586,6 +592,7 @@ async function renderScatterPlotMatrix(rows = []) {
     redraw();
 }
 
+// Builds activity/group filters and draws the violin plot for the filtered rows.
 async function renderViolinPlot(rows) {
     if (!window.d3) {
         console.error("D3 did not load. The violin plot cannot render.");
@@ -685,6 +692,7 @@ async function renderViolinPlot(rows) {
         .style("font-size", "12px")
         .text("Normalized value [0-1]");
 
+    // Bandwidth 0.12 is a tuned default that balances smoothing vs. detail.
     const kde = kernelDensityEstimator(kernelEpanechnikov(0.12), y.ticks(50));
 
     dataByMetric.forEach(({ name, values }) => {
@@ -783,6 +791,7 @@ async function renderViolinPlot(rows) {
     });
 }
 
+// Helpers for kernel density estimate (used by violin plot)
 function kernelDensityEstimator(kernel, X) {
     return function(V) {
         return X.map(function(x) {
@@ -797,6 +806,8 @@ function kernelEpanechnikov(k) {
     };
 }
 
+// D3 renderer for scatter matrix SVG.
+// Receives parsed rows, active metrics, and the wrapper element to draw into.
 function drawScatterMatrixSvg(data, metrics, wrapEl) {
     if (!wrapEl) return;
     wrapEl.innerHTML = "";
@@ -831,6 +842,7 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
 
             cellGroup
                 .append("rect")
+                // Background rectangle for each cell. Diagonal cells are tinted as label cells.
                 .attr("width", cellW)
                 .attr("height", cellH)
                 .attr("fill", rowIndex === colIndex ? "#eef2ff" : "#fafafa")
@@ -932,6 +944,7 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
     });
 }
 
+// Pearson correlation coefficient. Returns 0 if not enough points or no variance.
 function pearsonR(xs, ys) {
     const n = xs.length;
     if (n < 2) return 0;
@@ -947,6 +960,7 @@ function pearsonR(xs, ys) {
 function ensureTooltip() {
     let tooltip = d3.select("#vis-tooltip");
     if (tooltip.empty()) {
+        // Single shared tooltip layer used by all researcher visualizations.
         tooltip = d3.select("body").append("div").attr("id", "vis-tooltip").attr("class", "vis-tooltip");
     }
     return tooltip;
