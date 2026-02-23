@@ -38,16 +38,42 @@ async function initPatientPage() {
 
 async function setupPatientSelector() {
     let userIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; // Fallback
+    // Prefer an explicit JSON manifest on static hosts (works on GitHub Pages)
     try {
-        const response = await fetch("data/users/");
-        const text = await response.text();
-        const doc = new DOMParser().parseFromString(text, "text/html");
-        const scannedIds = Array.from(doc.querySelectorAll("a"))
-            .map(link => link.textContent.replace('/', ''))
-            .filter(name => !isNaN(name) && name.length > 0)
-            .map(Number);
-        if (scannedIds.length > 0) userIds = scannedIds;
-    } catch (e) { console.warn("Directory scan failed, using hardcoded IDs."); }
+        const res = await fetch("data/users/users.json");
+        if (res.ok) {
+            const parsed = await res.json();
+            if (Array.isArray(parsed) && parsed.length > 0) userIds = parsed.map(Number);
+        } else {
+            // fallback: attempt directory scan (some servers expose index listings)
+            try {
+                const response = await fetch("data/users/");
+                if (response.ok) {
+                    const text = await response.text();
+                    const doc = new DOMParser().parseFromString(text, "text/html");
+                    const scannedIds = Array.from(doc.querySelectorAll("a"))
+                        .map(link => link.textContent.replace('/', ''))
+                        .filter(name => !isNaN(name) && name.length > 0)
+                        .map(Number);
+                    if (scannedIds.length > 0) userIds = scannedIds;
+                }
+            } catch (e2) { console.warn("Directory scan failed, using hardcoded IDs."); }
+        }
+    } catch (e) {
+        console.warn("users.json fetch failed, falling back to directory scan or hardcoded IDs.", e);
+        try {
+            const response = await fetch("data/users/");
+            if (response.ok) {
+                const text = await response.text();
+                const doc = new DOMParser().parseFromString(text, "text/html");
+                const scannedIds = Array.from(doc.querySelectorAll("a"))
+                    .map(link => link.textContent.replace('/', ''))
+                    .filter(name => !isNaN(name) && name.length > 0)
+                    .map(Number);
+                if (scannedIds.length > 0) userIds = scannedIds;
+            }
+        } catch (e2) { console.warn("Directory scan failed, using hardcoded IDs."); }
+    }
 
     const select = d3.select("#patient-select");
     select.selectAll("option").data(userIds).enter().append("option")
@@ -320,7 +346,7 @@ function renderRadarCharts(isEnlarged = false) {
 
     const activityScores = ACTIVITIES.map(act => {
         const entry = activityDataSets[act].find(d => d.week === selectedWeek);
-        return { axis: act, value: entry ? entry.composite_score : 0 };
+        return { axis: act, displayName: ACTIVITY_NAMES[act] || act, value: entry ? entry.composite_score : 0 };
     });
 
     // helper to compute metric values and draw metric radar for a given activity
@@ -362,7 +388,18 @@ function drawRadar(containerId, data, onClick, size) {
 
     // Levels
     for(let j=0; j<cfg.levels; j++) {
-        svg.append("circle").attr("r", radius * ((j+1)/cfg.levels)).attr("fill", "none").attr("stroke", "#cbd5e1").attr("stroke-dasharray", "3,3");
+        const r = radius * ((j+1)/cfg.levels);
+        svg.append("circle").attr("r", r).attr("fill", "none").attr("stroke", "#cbd5e1").attr("stroke-dasharray", "3,3");
+        
+        // Scale labels (top of the circle)
+        const levelValue = Math.round(cfg.maxValue * ((j + 1) / cfg.levels));
+        svg.append("text")
+            .attr("class", "radar-scale-label")
+            .attr("text-anchor", "middle")
+            .attr("x", 0)
+            .attr("y", -r)
+            .attr("dy", "-0.25em")
+            .text(levelValue);
     }
 
     // Axes & Labels
@@ -370,7 +407,7 @@ function drawRadar(containerId, data, onClick, size) {
     axis.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
         .attr("x", (d, i) => rScale(115) * Math.cos(angleSlice*i - Math.PI/2))
         .attr("y", (d, i) => rScale(115) * Math.sin(angleSlice*i - Math.PI/2))
-        .text(d => d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
+        .text(d => d.displayName || d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
         .on("click", onClick ? (e, d) => onClick({axis: d.axis}) : null);
 
     // Polygon with enter transition
