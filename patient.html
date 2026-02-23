@@ -4,23 +4,106 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <title>VisGate - Patient View</title>
-    <link rel="stylesheet" href="css/styles.css?v0.0.2">
+    <title>VisGait - Patient Recovery</title>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="header-placeholder"></div>
 
-  <div id="header-placeholder"></div>
+    <main class="patient-content">        <div style="display:flex; justify-content:flex-end;">
+            <select id="patient-select" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;"></select>
+        </div>
 
-  <main class="patient-content">
-      <h2 id="patient-title">Patient Dashboard</h2>
-      <div id="patient-visualization">
-          </div>
-  </main>
+        <section class="summary-section viz-box">
+            <div class="welcome-message">Welcome Back!</div>
+            <div class="score-header">
+                <span id="patient-name-header" class="patient-name-large">Patient 1</span>
+                <span id="week-display" class="week-label-small">Week 12</span>
+            </div>
+            <div class="score-display-large">
+                <span id="score-val-big" class="score-val-big">--</span>
+                <span class="score-max-grey">/100</span>
+            </div>
+            <div class="progress-container">
+                <div id="health-bar" class="progress-bar"></div>
+                <div class="threshold-marker" style="left: 80%; border-left: 2px dashed black;">
+                    <span class="threshold-value-green">80</span>
+                    <span class="healthy-zone-label">Healthy Zone</span>
+                </div>
+            </div>
+        </section>
 
-  <div class="footer">
-      <p>&copy; 2026 VisGate Project</p>
-  </div>
-  
-  <script src="js/patient-view.js?v0.0.3"></script>
+        <section class="viz-row" style="display:grid; grid-template-columns: 1fr 380px; gap: 24px; align-items:stretch;">
+            <div class="viz-box">
+                <button class="enlarge-btn" onclick="openEnlargedChart('line')">⛶</button>
+                <h3 style="margin:0 0 20px 0;">Weekly Progress</h3>
+                <div id="line-chart"></div>
+            </div>
+
+            <div id="composite-weighting" class="viz-box">
+                <h3 style="margin-top:0;">Custom Composite Weighting</h3>
+                <p style="margin-top:0.25rem; color:#64748b; font-size:13px;">Drag the three handles to divide the slider into four weighted segments (percentages).</p>
+                <div id="weight-slider-root" style="margin-top:12px;">
+                    <div id="weight-track" style="position:relative; height:36px; display:flex; align-items:center;">
+                        <div id="seg-0" class="weight-seg" style="height:16px; border-radius:8px 0 0 8px;"></div>
+                        <div id="seg-1" class="weight-seg" style="height:16px;"></div>
+                        <div id="seg-2" class="weight-seg" style="height:16px;"></div>
+                        <div id="seg-3" class="weight-seg" style="height:16px; border-radius:0 8px 8px 0;"></div>
+                        <!-- invisible range inputs overlay -->
+                        <input id="handle-1" class="weight-handle" type="range" min="1" max="99" step="1" value="25" />
+                        <input id="handle-2" class="weight-handle" type="range" min="1" max="99" step="1" value="50" />
+                        <input id="handle-3" class="weight-handle" type="range" min="1" max="99" step="1" value="75" />
+                        <div id="thumb-1" class="weight-thumb" aria-hidden="true"></div>
+                        <div id="thumb-2" class="weight-thumb" aria-hidden="true"></div>
+                        <div id="thumb-3" class="weight-thumb" aria-hidden="true"></div>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <div id="weight-legend" style="display:flex; flex-direction:column; gap:6px;"></div>
+                        <div style="margin-top:10px; display:flex; justify-content:center;">
+                            <button id="reset-weights" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;width:160px;">Reset to Defaults</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="combined-radar-frame" style="grid-column: 1 / -1;">
+                <button class="enlarge-btn" onclick="openEnlargedChart('radar')">⛶</button>
+                <div class="radar-column">
+                    <h3>Activity Breakdown</h3>
+                    <div id="radar-activities"></div>
+                </div>
+                <div class="radar-column">
+                    <h3 id="radar-metrics-title">Select an Activity</h3>
+                    <div id="radar-metrics"></div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="viz-box" style="margin-top: 24px;">
+            <h3 style="margin-bottom: 20px;">Weekly Activity Performance</h3>
+                <div id="activity-bars-container" style="display: flex; flex-direction: column; gap: 16px; padding: 10px;">
+                </div>
+        </section>
+    </main>
+
+    <div id="chart-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title" style="margin-top:0; color:#1e293b;">Detailed View</h2>
+            <div id="modal-chart-container" style="flex:1; display:flex; justify-content:center; align-items:center;"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/patient-view.js"></script>
+
+    <script>
+        function openEnlargedChart(type) {
+            window.dispatchEvent(new CustomEvent('openModal', { detail: { type } }));
+        }
+        function closeModal() {
+            document.getElementById('chart-modal').style.display = 'none';
+        }
+    </script>
 </body>
 </html>

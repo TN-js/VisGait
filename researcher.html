@@ -5,24 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <title>VisGate - Researcher View</title>
+    <title>VisGait - Researcher View</title>
     <link rel="stylesheet" href="css/styles.css?v0.0.2">
 </head>
 <body>
     <div id="header-placeholder"></div>
 
     <main class="researcher-content">
-        <div class="parallel-coord-plot">parallel-coord-plot</div>
-        <div class="line-plot-with-std">line-plot-with-std</div>
-        <div class="scatter-plot-matrix">scatter-plot-matrix</div>
-        
-        <div class="researcher-visualization" id="researcher-visualization"></div>
+        <div class="researcher-box">
+            <div class="parallel-coord-plot" id="parallel-coord-plot"></div>
+            <div class="line-plot-with-std" id="line-plot-with-std"></div>
+            <div class="scatter-plot-matrix" id="scatter-plot-matrix"></div>
+            <div class="violin-plot" id="violin-plot"></div>
+        </div>
     </main>
 
     <div class="footer">
         <h2>footer</h2>
     </div>
-  
+
+    <div id="vis-tooltip" class="vis-tooltip"></div>
     <script src="js/researcher-view.js"></script>
 </body>
 </html>
