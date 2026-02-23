@@ -1,262 +1,422 @@
-/* makes height and width include padding + border for every element */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
+/* --- General Layout & Typography --- */
 body {
-  margin: 0;
-  height: 100dvh;
-  padding: 0;
-}
-
-body {
-  padding: 8px;
-  gap: 8px;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-}
-
-.header {
-  margin: 0;
-  padding: 0;
-  border: solid 1px black;
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-}
-
-.tab-switcher {
-  display: flex;
-  flex-direction: row;
-  justify-self: start;
-}
-
-.tab-button {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 4px;
-    cursor: pointer;
-    background: none;
-    padding: 4px 8px;
-    margin: 4px;
-    font-size: 15px;
-    outline: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.tab-button:hover {
-    background: #e0e0e0;
-}
-
-.tab-button.active {
-    background: #c9d5e6;
-}
-
-h1 {
-    margin: 0;
-    padding: 0;
-    color:black;
-}
-
-.title {
-    margin: 4px;
-    padding: 4px;
-    display: flex;
-    justify-content: flex-start;
-    justify-self: start;
-}
-
-.header-logo {
-    display: block;
-    height: 40px;
-    width: auto;
+        height: auto;
+        overflow-y: auto;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background-color: #f8fafc; /* Lighter, modern professional background */
+        margin: 0;
 }
 
 .patient-content {
-  margin: 0;
-  padding: 0;
-  border: solid 1px black;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
-.researcher-content {
-  margin: 0;
-  padding: 1rem;
-  border: solid 1px black;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  justify-content: stretch;
-  align-items: stretch;
+/* --- Professional Header (Three-Column Centered Layout) --- */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 40px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    height: 70px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
-.researcher-box {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 0.5vw;
+/* Left: Logo */
+.header .title {
+    flex: 1; 
+    display: flex;
+    justify-content: flex-start;
 }
 
-.parallel-coord-plot,
-.line-plot-with-std {
-  border: 1px solid;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.header-logo {
+    height: 50px;
+    width: auto;
 }
 
-/* makes the checkbox panel sit on the left and the chart fill the rest */
-.scatter-plot-matrix {
-  border: 1px solid;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+/* Middle: Navigation Pills */
+.header .tab-switcher {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    background-color: #f1f5f9;
+    padding: 5px;
+    border-radius: 50px;
 }
 
-/* border-right draws the dividing line btw the panel and the chart */
-.scatter-controls {
-  width: 148px;
-  min-width: 148px;
-  padding: 6px 8px;
-  overflow-y: auto;
-  border-right: 1px solid #ddd;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 11px;
-  background: #fafbff;
+.tab-button {
+    text-decoration: none;
+    padding: 10px 24px;
+    border-radius: 40px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #64748b;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* styles the 'Metrics' label at the top of the checkbox panel */
-.scatter-controls-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #1a3a8a;
-  margin-bottom: 4px;
-  padding-bottom: 3px;
-  border-bottom: 1px solid #dde;
+.tab-button:hover:not(.active) {
+    color: #1e293b;
+    background-color: #e2e8f0;
 }
 
-/* highlights it blue on hover */
-.scatter-check-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  padding: 2px 3px;
-  border-radius: 3px;
-  line-height: 1.5;
+.tab-button.active {
+    background: #2563eb; /* Primary Blue */
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
 }
 
-.scatter-check-label:hover {
-  background: #e8efff;
-}
-
-/* tells this element to grow and fill wtv space is left after the fixed panel takes its 148px */
-.scatter-svg-wrap {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.violin-plot {
-  border: 1px solid;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  padding: 6px;
-  gap: 6px;
-}
-
-.violin-filters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  font-size: 12px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  border-bottom: 1px solid #eee;
-}
-
-.violin-filters label {
-  color: #444;
-  white-space: nowrap;
-}
-
-.violin-filters select {
-  font-size: 12px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid #bbb;
-}
-
-.violin-chart-wrap {
-  flex: 1;
-  min-height: 0;
-}
-
-.violin-plot svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.footer {
-    margin: 0;
-    padding: 0;
-    border: solid 1px black;
-    text-align: center;
+/* Right: Balance Spacer */
+.header .header-right {
     flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* --- Dashboard Visualization Boxes --- */
+.viz-box, .combined-radar-frame {
+    position: relative; /* Context for enlarge button */
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Ensure viz boxes fill vertical space when placed in a grid row */
+.viz-box {
+    display: flex;
+    flex-direction: column;
+}
+
+.viz-row {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.combined-radar-frame {
+    display: flex;
+    flex-direction: row;
+    min-height: 450px;
+    gap: 20px;
+}
+
+.radar-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.radar-column:first-child {
+    border-right: 1px solid #f1f5f9;
+}
+
+.radar-scale-label {
+    font-size: 11px;
+    font-weight: 600;
+    fill: #94a3b8;
+}
+
+/* --- Patient Score Summary Section --- */
+.score-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.welcome-message {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.patient-name-large {
+    font-size: 32px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+}
+
+.week-label-small {
+    font-size: 18px;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.score-display-large {
+    display: flex;
+    align-items: baseline;
+    margin-top: 10px;
+}
+
+.score-val-big {
+    font-size: 64px;
+    font-weight: 800;
+}
+
+.score-max-grey {
+    font-size: 24px;
+    color: #cbd5e1;
+    margin-left: 10px;
+}
+
+/* Threshold / Progress Bar */
+.progress-container {
+    position: relative;
+    width: 100%;
+    height: 16px;
+    background: #f1f5f9;
+    border-radius: 50px;
+    margin: 40px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 50px;
+    width: 0%; /* start collapsed to avoid initial jump animation */
+    transition: width 1s ease, background-color 1s ease;
+}
+
+.threshold-marker {
+    position: absolute;
+    top: -10px;
+    bottom: -10px;
+    width: 2px;
+    border-left: 2px dashed #334155;
+}
+
+.threshold-value-green {
+    position: absolute;
+    top: -25px;
+    left: -10px;
+    color: #10b981;
+    font-weight: 700;
+}
+
+.healthy-zone-label {
+    position: absolute;
+    bottom: -25px;
+    left: -40px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* --- Interaction Elements --- */
+.enlarge-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 18px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.enlarge-btn:hover {
+    background: #eff6ff;
+    color: #2563eb;
+    border-color: #bfdbfe;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* --- Modal Overlay --- */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000; /* Behind tooltip, but above everything else */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.9); /* Darker backdrop */
+    backdrop-filter: blur(8px);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 20px;
+    width: 90%;
+    height: 85%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.close-modal {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: #94a3b8;
+    font-size: 35px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-modal:hover {
+    color: #f43f5e;
+}
+
+#modal-chart-container {
+    flex: 1;
+    width: 100%;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-.header-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding-right: 8px;
+/* --- Tooltip (Top Layer) --- */
+.d3-tooltip {
+    position: absolute;
+    padding: 8px 12px;
+    background: #1e293b;
+    color: #ffffff;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 3000; /* Ensure tooltip is visible even over the Modal */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
 }
 
-.btn-about {
+/* --- Composite Weighting Slider --- */
+.weight-seg {
+    flex: 0 0 auto;
+    width: 25%; /* initial; will be overridden by JS */
+}
+
+.weight-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    opacity: 0; /* hide native track, we only use the thumb value */
+    pointer-events: none; /* disable native pointer handling to allow custom thumb dragging */
+}
+
+.weight-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #e6eef8;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.12), 0 2px 6px rgba(0,0,0,0.08);
+    z-index: 30;
+    pointer-events: auto;
+    cursor: grab;
+}
+
+.weight-thumb:active {
+    cursor: grabbing;
+}
+
+#weight-track {
+    width: 100%;
+    border-radius: 8px;
+}
+
+#weight-legend {
     font-size: 14px;
-    padding: 4px 12px;
+    color: #0f172a;
+}
+
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.legend-swatch {
+    width: 18px;
+    height: 12px;
     border-radius: 4px;
-    border: 1px solid #aaa;
-    cursor: pointer;
-    background: none;
 }
 
-.btn-about:hover {
-    background: #e0e0e0;
+.legend-label {
+    font-weight: 600;
+    color: #334155;
+    flex: 1;
 }
 
-.footer p {
-    margin: 0;
-    font-size: 11px;
-    color: #888;
+.legend-weight {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+/* Line chart container helps the svg size and centering */
+#line-chart {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+}
+
+#line-chart svg {
+    width: 100%;
+    height: 100%;
+}
+/* --- Researcher 2x2 Grid --- */
+.researcher-content {
+    padding: 24px;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.researcher-box {
+    width: 100%;
+    min-height: 76vh;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 1.4vh;
+}
+
+.parallel-coord-plot,
+.line-plot-with-std,
+.scatter-plot-matrix,
+.violin-plot {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
 }
 
 .modal-overlay {
@@ -285,24 +445,179 @@ h1 {
     gap: 16px;
 }
 
-/* always appears right at the cursor position */
-.vis-tooltip {
-    display: none;
-    position: fixed;
-    background: rgba(20, 20, 40, 0.88);
-    color: #fff;
-    font-size: 12px;
-    line-height: 1.5;
-    padding: 8px 10px;
-    border-radius: 5px;
-    pointer-events: none;
-    z-index: 200;
-    max-width: 220px;
+.scatter-plot-matrix {
+    flex-direction: row;
+    align-items: stretch;
 }
 
-.scatter-plot-matrix svg,
-.violin-plot svg {
+.parallel-coord-plot {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 8px;
+    gap: 8px;
+}
+
+.parallel-filter-controls {
+    position: static;
+    align-self: flex-end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+.parallel-filter-controls button {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #1e293b;
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.parallel-filter-controls button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.parallel-filter-status {
+    color: #475569;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.pc-brush .selection {
+    fill: rgba(37, 99, 235, 0.18);
+    stroke: #2563eb;
+}
+
+.pc-brush .overlay {
+    cursor: ns-resize;
+}
+
+.violin-plot {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 8px;
+    gap: 8px;
+}
+
+.violin-controls select {
+    width: 100%;
+    font-size: 12px;
+}
+
+.scatter-controls {
+    width: 156px;
+    min-width: 156px;
+    padding: 8px;
+    overflow-y: auto;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    background: #f8fafc;
+}
+
+.scatter-controls-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #dbe4f1;
+}
+
+.scatter-check-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 4px;
+    line-height: 1.45;
+    color: #1e293b;
+}
+
+.scatter-check-label:hover {
+    background: #e8efff;
+}
+
+.scatter-svg-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.scatter-empty {
+    margin: auto;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.violin-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    font-size: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.violin-filters label {
+    color: #475569;
+    white-space: nowrap;
+}
+
+.violin-filters select {
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+}
+
+.violin-chart-wrap {
+    flex: 1;
+    min-height: 0;
+}
+
+.violin-plot svg,
+.parallel-coord-plot svg,
+.line-plot-with-std svg,
+.scatter-plot-matrix svg {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.vis-tooltip {
+    display: none;
+    position: fixed;
+    background: rgba(20, 20, 40, 0.9);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+    padding: 8px 10px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 3000;
+    max-width: 240px;
+}
+
+@media (max-width: 980px) {
+    .researcher-box {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, minmax(0, 1fr));
+    }
 }

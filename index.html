@@ -3,64 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <title>VisGate</title>
-    <link rel="stylesheet" href="css/styles.css?v0.0.2">
+    <title>VisGait - About Us</title>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div class="header">
-        <div class="title">
-            <img class="header-logo" src="images/VisGate-logo.png" alt="VisGate logo">
-        </div>
-        <div class="tab-switcher">
-            <button id="tab-button-patient" class="tab-button">Patient</button>
-            <button id="tab-button-researcher" class="tab-button">Researcher</button>
-        </div>
-        <div class="header-actions">
-            <button class="btn-about" id="btn-about">About</button>
-        </div>
-    </div>
+    <div id="header-placeholder"></div>
 
-<main class="patient-content">
-    <h2 id="patient-content">patient-content</h2>
-    <div id="patient-visualization"></div>
-</main>
+    <main class="patient-content">
+        <section class="viz-box">
+            <h1 class="patient-name-large">About VisGait</h1>
+            <p style="color: #64748b; font-size: 18px; line-height: 1.6;">
+                Welcome to VisGait, a professional gait analysis dashboard designed to bridge the gap 
+                between complex biomechanical data and actionable clinical insights.
+            </p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+            <h3>Our Mission</h3>
+            <p>To provide researchers and patients with a clear, visual understanding of recovery progress through advanced data visualization.</p>
+        </section>
+    </main>
 
-<main class="researcher-content">
-    <div class="researcher-box">
-        <div class="parallel-coord-plot" id="parallel-coord-plot"></div>
-        <div class="line-plot-with-std" id="line-plot-with-std">line-plot-with-std</div>
-        <div class="scatter-plot-matrix" id="scatter-plot-matrix">scatter-plot-matrix</div>
-        <div class="violin-plot" id="violin-plot"></div>
-    </div>
-</main>
-
-<div class="footer">
-    <p>VisGate &copy; 2026</p>
-</div>
-    <div class="modal-overlay" id="modal-about">
-    <div class="modal-box">
-        <h2>About VisGate</h2>
-        <section>
-            <h3>Project Description</h3>
-            <p>describe the project here.</p>
-        </section>
-        <section>
-            <h3>Team Members &amp; Contributions</h3>
-            <p>team members and their features.</p>
-        </section>
-        <section>
-            <h3>How to Use</h3>
-            <p>usage guide for patient and researcher views.</p>
-        </section>
-        <section>
-            <h3>Demo Video</h3>
-            <p><a href="#" target="_blank">youtube link</a></p>
-        </section>
-    </div>
-</div>
-    <div id="vis-tooltip" class="vis-tooltip"></div>
-    <script src="js/scripts.js?v0.0.3"></script> 
-    <!-- cache-busting query string, keeps the old cached copy even after saving changes -->
+    <script type="module" src="js/about-view.js"></script>
 </body>
+</html>
