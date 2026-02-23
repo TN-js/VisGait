@@ -171,6 +171,7 @@ body {
 .progress-bar {
     height: 100%;
     border-radius: 50px;
+    width: 0%; /* start collapsed to avoid initial jump animation */
     transition: width 1s ease, background-color 1s ease;
 }
 
