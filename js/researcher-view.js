@@ -6,16 +6,16 @@ const RESEARCHER_DATA_PATH = "data/dashboard_data.csv";
 let cachedDashboardRows = [];
 let filteredData = [];
 // Violin filter state
-// Violin filter state
 let violinActivity = "All";
 let violinGroup = "All";
-// Default scatter matrix metric selection shown on first render
 // Default scatter matrix metric selection shown on first render
 let selectedScatterMetricKeys = ["composite_score", "GSI_pct", "step_time_cv_pct", "symmetry_ratio"];
 const parallelAxisFilters = {};
 
 // For finetuning sizings of the plot layout
 const PLOT_LAYOUT = {
+    panelWidthVw: 40,
+    panelHeightVh: 36,
     marginRatio: { top: 0.07, right: 0.05, bottom: 0.11, left: 0.1 },
     parallelControlsHeightRatio: 0.14,
     violinControlsHeightRatio: 0.14
@@ -38,7 +38,6 @@ const GROUP_COLORS = {
 };
 
 // Scatter matrix: all available metrics
-// Scatter matrix: all available metrics
 const SCATTER_METRICS = [
     { key: "composite_score", name: "Composite Score" },
     { key: "GSI_pct", name: "GSI (%)" },
@@ -51,7 +50,6 @@ const SCATTER_METRICS = [
     { key: "step_time_mean_sec", name: "Step Time (s)" },
     { key: "total_steps", name: "Total Steps" }
 ];
-const PARALLEL_METRICS = SCATTER_METRICS.slice();
 const PARALLEL_METRICS = SCATTER_METRICS.slice();
 
 const VIOLIN_METRICS = [
@@ -80,8 +78,8 @@ function getPlotFrame(panelId, reserveTopRatio = 0) {
     const el = document.getElementById(panelId);
     if (!el) return null;
 
-    const width = el.clientWidth || 320;
-    const totalHeight = el.clientHeight || 240;
+    const width = el.clientWidth || (window.innerWidth * PLOT_LAYOUT.panelWidthVw) / 100;
+    const totalHeight = el.clientHeight || (window.innerHeight * PLOT_LAYOUT.panelHeightVh) / 100;
     const height = totalHeight * (1 - reserveTopRatio);
     const margin = {
         top: height * PLOT_LAYOUT.marginRatio.top,
@@ -138,23 +136,7 @@ async function syncFilteredDatasetFromParallel(weekData, dimensions) {
                     .filter((row) => rowPassesParallelFilters(row, dimensions))
                     .map((row) => row.week)
             );
-    } else {
-        if (Array.isArray(weekData) && weekData.length && weekData[0].__raw) {
-            filteredData = weekData
-                .filter((row) => rowPassesParallelFilters(row, dimensions))
-                .map((row) => row.__raw);
-        } else {
-            const includedWeeks = new Set(
-                weekData
-                    .filter((row) => rowPassesParallelFilters(row, dimensions))
-                    .map((row) => row.week)
-            );
 
-            filteredData = cachedDashboardRows.filter((row) => {
-                const week = Number(row.week);
-                return Number.isFinite(week) && includedWeeks.has(week);
-            });
-        }
             filteredData = cachedDashboardRows.filter((row) => {
                 const week = Number(row.week);
                 return Number.isFinite(week) && includedWeeks.has(week);
@@ -203,24 +185,7 @@ async function renderParallelCoordinatesPlot(rows) {
         acc[metric.name] = metric.key;
         return acc;
     }, {});
-    const hostEl = document.getElementById("parallel-coord-plot");
-    if (!hostEl) return;
 
-    const dimensions = PARALLEL_METRICS.map((metric) => metric.name);
-    const keyByDimension = PARALLEL_METRICS.reduce((acc, metric) => {
-        acc[metric.name] = metric.key;
-        return acc;
-    }, {});
-
-    const data = rows
-        .map((row, index) => {
-            const next = { __raw: row, __index: index };
-            PARALLEL_METRICS.forEach((metric) => {
-                next[metric.name] = Number(row[metric.key]);
-            });
-            return next;
-        })
-        .filter((row) => dimensions.filter((dimension) => Number.isFinite(row[dimension])).length >= 2);
     const data = rows
         .map((row, index) => {
             const next = { __raw: row, __index: index };
@@ -233,7 +198,6 @@ async function renderParallelCoordinatesPlot(rows) {
 
     if (!data.length) {
         container.append("div").attr("class", "parallel-empty").text("No numeric data for parallel coordinates.");
-        container.append("div").attr("class", "parallel-empty").text("No numeric data for parallel coordinates.");
         filteredData = cachedDashboardRows.slice();
         updateParallelFilterControls(0, filteredData.length, cachedDashboardRows.length);
         await Promise.all([
@@ -244,28 +208,6 @@ async function renderParallelCoordinatesPlot(rows) {
         return;
     }
 
-    const panelWidth = Math.max(320, hostEl.clientWidth || 0);
-    const panelHeight = Math.max(240, hostEl.clientHeight || 0);
-    const controlsHeight = panelHeight * PLOT_LAYOUT.parallelControlsHeightRatio;
-    const viewportHeight = Math.max(160, panelHeight - controlsHeight - 18);
-    const axisSpacing = 140;
-    const chartWidth = Math.max(panelWidth - 20, axisSpacing * (dimensions.length - 1) + 130);
-    const chartHeight = viewportHeight;
-    const margin = {
-        top: chartHeight * PLOT_LAYOUT.marginRatio.top,
-        right: chartWidth * PLOT_LAYOUT.marginRatio.right,
-        bottom: chartHeight * PLOT_LAYOUT.marginRatio.bottom,
-        left: chartWidth * PLOT_LAYOUT.marginRatio.left
-    };
-    const plotWidth = chartWidth - margin.left - margin.right;
-    const plotHeight = chartHeight - margin.top - margin.bottom;
-
-    const scrollWrap = container
-        .append("div")
-        .attr("class", "parallel-scroll-wrap")
-        .style("height", `${viewportHeight}px`);
-
-    const svg = scrollWrap
     const panelWidth = Math.max(320, hostEl.clientWidth || 0);
     const panelHeight = Math.max(240, hostEl.clientHeight || 0);
     const controlsHeight = panelHeight * PLOT_LAYOUT.parallelControlsHeightRatio;
@@ -316,45 +258,12 @@ async function renderParallelCoordinatesPlot(rows) {
         .on("mouseleave", () => {
             isDragging = false;
         });
-        .attr("width", chartWidth)
-        .attr("height", chartHeight)
-        .attr("viewBox", `0 0 ${chartWidth} ${chartHeight}`)
-        .attr("preserveAspectRatio", "none");
-
-    let isDragging = false;
-    let dragStartX = 0;
-    let dragStartScroll = 0;
-    scrollWrap
-        .on("mousedown", (event) => {
-            if (event.target.closest(".pc-brush")) return;
-            isDragging = true;
-            dragStartX = event.clientX;
-            dragStartScroll = scrollWrap.node().scrollLeft;
-        })
-        .on("mousemove", (event) => {
-            if (!isDragging) return;
-            event.preventDefault();
-            const dx = event.clientX - dragStartX;
-            scrollWrap.node().scrollLeft = dragStartScroll - dx;
-        })
-        .on("mouseup", () => {
-            isDragging = false;
-        })
-        .on("mouseleave", () => {
-            isDragging = false;
-        });
 
     const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const x = d3.scalePoint().domain(dimensions).range([0, plotWidth]).padding(0.2);
 
     const yByDimension = {};
     dimensions.forEach((dimension) => {
-        const values = data.map((row) => row[dimension]).filter((value) => Number.isFinite(value));
-        const extent = d3.extent(values);
-        if (!values.length || !Number.isFinite(extent[0]) || !Number.isFinite(extent[1])) {
-            yByDimension[dimension] = d3.scaleLinear().domain([0, 1]).range([plotHeight, 0]);
-            return;
-        }
         const values = data.map((row) => row[dimension]).filter((value) => Number.isFinite(value));
         const extent = d3.extent(values);
         if (!values.length || !Number.isFinite(extent[0]) || !Number.isFinite(extent[1])) {
@@ -370,7 +279,6 @@ async function renderParallelCoordinatesPlot(rows) {
 
     const line = d3
         .line()
-        .defined(([, value]) => Number.isFinite(value))
         .defined(([, value]) => Number.isFinite(value))
         .x(([dimension]) => x(dimension))
         .y(([dimension, value]) => yByDimension[dimension](value));
@@ -389,8 +297,6 @@ async function renderParallelCoordinatesPlot(rows) {
             .attr("stroke", (row) => (rowPassesParallelFilters(row, dimensions) ? "#2563eb" : "#9ca3af"))
             .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.2 : 1))
             .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.5 : 0.1));
-            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.2 : 1))
-            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.5 : 0.1));
     };
 
     const axis = chart
@@ -402,7 +308,6 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("transform", (dimension) => `translate(${x(dimension)},0)`)
         .each(function(dimension) {
             d3.select(this).call(d3.axisLeft(yByDimension[dimension]).ticks(5));
-            d3.select(this).call(d3.axisLeft(yByDimension[dimension]).ticks(5));
         });
 
     axis
@@ -411,7 +316,6 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("text-anchor", "middle")
         .attr("fill", "#111")
         .style("font-size", "11px")
-        .style("font-size", "11px")
         .text((dimension) => dimension);
 
     axis
@@ -419,7 +323,7 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("y", plotHeight + 13)
         .attr("text-anchor", "middle")
         .attr("fill", "#64748b")
-        .style("font-size", "10px")
+        .style("font-size", "11px")
         .text((dimension) => keyByDimension[dimension] || "");
 
     let isRestoringBrush = false;
@@ -571,62 +475,34 @@ async function renderLinePlotWithStd(rows) {
         .attr("transform", `translate(0,${plotHeight})`)
         .call(d3.axisBottom(x));
 
-    const tooltip = d3.select("body")
-        .append("div")
-        .style("position", "absolute")
-        .style("opacity", 0);
-
     const color = d3.scaleOrdinal(d3.schemeCategory10);
-
     dimensions.forEach((dimension) => {
-        const lineGroup = chart.append("g");
+        const line = d3
+            .line()
+            .x((d) => x(d.week))
+            .y((d) => y(d[dimension]));
 
         const areaToShade = d3
             .area()
             .x((d) => x(d.week))
             .y0((d) => y(d[dimension] - d[`${dimension}-STD`]))
             .y1((d) => y(d[dimension] + d[`${dimension}-STD`]));
-        lineGroup
-            .append("path")
-            .datum(data)
-            .attr("fill", color(dimension))
-            .attr("opacity", 0.5)
-            .attr("d", areaToShade);
-    })
 
-    dimensions.forEach((dimension) => {
-        const lineGroup = chart.append("g");
-        const line = d3
-            .line()
-            .x((d) => x(d.week))
-            .y((d) => y(d[dimension]));
-        
-        lineGroup
+        chart
             .append("path")
             .datum(data)
             .attr("fill", "none")
             .attr("stroke", color(dimension))
             .attr("stroke-width", 1)
             .attr("d", line);
-            
-        lineGroup.selectAll("circle").data(data).enter().append("circle")
-        .attr("cx", d => x(d.week)).attr("cy", d => y(d[dimension])).attr("r", 3)
-        .style('cursor','pointer')
-        .on('mouseover', (e, d) => {
-            // use dark tooltip style for line chart
-            tooltip.style('background', '#1e293b').style('color', '#ffffff').style('padding', '8px 10px').style('border', 'none').style('min-width','60px');
-            const wk = d && d.week ? d.week : '?';
-            const value = d[dimension];
-            const stdValue = d[`${dimension}-STD`];
-            tooltip.style('opacity', 1).html(`Week: ${wk}<br/>${dimension}: ${value}<br/>${dimension}-STD: ${stdValue}`)
-                .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
-        })
-        .on('mousemove', (e) => {
-            tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
-        })
-        .on('mouseout', () => { tooltip.style('opacity', 0); });
+
+        chart
+            .append("path")
+            .datum(data)
+            .attr("fill", color(dimension))
+            .attr("opacity", 0.5)
+            .attr("d", areaToShade);
     });
-    chart.selectAll("circle").raise()
 }
 
 // Called on researcher load and checkbox changes:
@@ -703,7 +579,6 @@ async function renderScatterPlotMatrix(rows = []) {
                     }
                 } else {
                     // Keep at least 2 active metrics; fewer cannot form a scatter comparison.
-                    // Keep at least 2 active metrics; fewer cannot form a scatter comparison.
                     if (selectedScatterMetricKeys.length <= 2) {
                         this.checked = true;
                         return;
@@ -718,7 +593,6 @@ async function renderScatterPlotMatrix(rows = []) {
     redraw();
 }
 
-// Builds activity/group filters and draws the violin plot for the filtered rows.
 // Builds activity/group filters and draws the violin plot for the filtered rows.
 async function renderViolinPlot(rows) {
     if (!window.d3) {
@@ -820,7 +694,6 @@ async function renderViolinPlot(rows) {
         .text("Normalized value [0-1]");
 
     // Bandwidth 0.12 is a tuned default that balances smoothing vs. detail.
-    // Bandwidth 0.12 is a tuned default that balances smoothing vs. detail.
     const kde = kernelDensityEstimator(kernelEpanechnikov(0.12), y.ticks(50));
 
     dataByMetric.forEach(({ name, values }) => {
@@ -920,7 +793,6 @@ async function renderViolinPlot(rows) {
 }
 
 // Helpers for kernel density estimate (used by violin plot)
-// Helpers for kernel density estimate (used by violin plot)
 function kernelDensityEstimator(kernel, X) {
     return function(V) {
         return X.map(function(x) {
@@ -935,8 +807,6 @@ function kernelEpanechnikov(k) {
     };
 }
 
-// D3 renderer for scatter matrix SVG.
-// Receives parsed rows, active metrics, and the wrapper element to draw into.
 // D3 renderer for scatter matrix SVG.
 // Receives parsed rows, active metrics, and the wrapper element to draw into.
 function drawScatterMatrixSvg(data, metrics, wrapEl) {
@@ -973,7 +843,6 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
 
             cellGroup
                 .append("rect")
-                // Background rectangle for each cell. Diagonal cells are tinted as label cells.
                 // Background rectangle for each cell. Diagonal cells are tinted as label cells.
                 .attr("width", cellW)
                 .attr("height", cellH)
@@ -1077,7 +946,6 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
 }
 
 // Pearson correlation coefficient. Returns 0 if not enough points or no variance.
-// Pearson correlation coefficient. Returns 0 if not enough points or no variance.
 function pearsonR(xs, ys) {
     const n = xs.length;
     if (n < 2) return 0;
@@ -1093,7 +961,6 @@ function pearsonR(xs, ys) {
 function ensureTooltip() {
     let tooltip = d3.select("#vis-tooltip");
     if (tooltip.empty()) {
-        // Single shared tooltip layer used by all researcher visualizations.
         // Single shared tooltip layer used by all researcher visualizations.
         tooltip = d3.select("body").append("div").attr("id", "vis-tooltip").attr("class", "vis-tooltip");
     }
