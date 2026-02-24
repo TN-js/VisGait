@@ -398,11 +398,12 @@ body {
 
 .researcher-box {
     width: 100%;
-    min-height: 76vh;
+    height: clamp(620px, 76vh, 920px);
+    min-height: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 6px;
     align-items: stretch;
 }
 
