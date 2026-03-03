@@ -13,15 +13,10 @@
 
     <main class="researcher-content">
         <div class="researcher-box">
-            <div class="parallel-coord-plot" id="parallel-coord-plot"></div>
-            <div class="line-plot-with-std" id="line-plot-with-std">
-            </div>
-            <div class="scatter-plot-matrix" id="scatter-plot-matrix" style="position:relative;">
-                <button class="enlarge-btn" onclick="openResearcherModal('scatter')">⛶</button>
-            </div>
-            <div class="violin-plot" id="violin-plot" style="position:relative;">
-                <button class="enlarge-btn" onclick="openResearcherModal('violin')">⛶</button>
-            </div>
+            <div class="parallel-coord-plot" id="parallel-coord-plot" style="position:relative;"></div>
+            <div class="line-plot-with-std" id="line-plot-with-std" style="position:relative;"></div>
+            <div class="scatter-plot-matrix" id="scatter-plot-matrix" style="position:relative;"></div>
+            <div class="violin-plot" id="violin-plot" style="position:relative;"></div>
         </div>
     </main>
 
@@ -29,28 +24,25 @@
         Disclaimer: The gait performance data presented in this dashboard is synthetic and generated for demonstration purposes only. It does not represent real patient data.
     </footer>
 
-    <!-- Expand Modal -->
     <div id="researcher-modal" class="modal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeResearcherModal()">&times;</span>
-            <h2 id="researcher-modal-title" style="margin-top:0; color:#1e293b;">Detailed View</h2>
-            <div id="researcher-modal-container" style="flex:1; display:flex; justify-content:center; align-items:center; overflow:hidden;"></div>
+            <div id="researcher-modal-container" style="flex:1; display:flex; justify-content:center; align-items:center; overflow:auto;"></div>
         </div>
     </div>
 
-    <!-- Metric Info Tooltip -->
     <div id="metric-info-tooltip" class="metric-info-tooltip"></div>
-
     <div id="vis-tooltip" class="vis-tooltip"></div>
-    <script src="js/config.js"></script>
     <script src="js/researcher-view.js"></script>
     <script>
         function openResearcherModal(type) {
-            window.dispatchEvent(new CustomEvent('openResearcherModal', { detail: { type } }));
+            window.dispatchEvent(new CustomEvent("openResearcherModal", { detail: { type } }));
         }
-        function closeResearcherModal() {
-            document.getElementById('researcher-modal').style.display = 'none';
-        }
+        document.addEventListener("click", (event) => {
+            const modal = document.getElementById("researcher-modal");
+            if (!modal) return;
+            if (event.target === modal) closeResearcherModal();
+        });
     </script>
 </body>
 </html>
