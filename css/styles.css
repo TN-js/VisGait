@@ -653,3 +653,83 @@ body {
         grid-template-rows: repeat(4, minmax(0, 1fr));
     }
 }
+
+/* --- Disclaimer Footer --- */
+.disclaimer-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    padding: 12px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    line-height: 1.5;
+}
+
+/* --- Metric Info Tooltip (hover on metric labels) --- */
+.metric-info-tooltip {
+    display: none;
+    position: fixed;
+    background: #ffffff;
+    color: #1e293b;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+    z-index: 4000;
+    max-width: 280px;
+}
+
+/* --- PCP Activity Dropdown & Legend --- */
+.pcp-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 6px;
+    font-size: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.pcp-controls-bar label {
+    color: #475569;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pcp-controls-bar select {
+    font-size: 12px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+}
+
+.pcp-legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    font-size: 11px;
+}
+
+.pcp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pcp-legend-swatch {
+    width: 14px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+/* Enlarge button positioning inside researcher panels */
+.scatter-plot-matrix .enlarge-btn,
+.violin-plot .enlarge-btn {
+    z-index: 20;
+}

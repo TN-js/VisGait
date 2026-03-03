@@ -1,18 +1,27 @@
 /**
  * VisGait - Researcher View Logic
+ *
+ * Depends on js/config.js being loaded first (GROUP_COLORS, ACTIVITY_METRICS, METRIC_INFO).
  */
 
-const RESEARCHER_DATA_PATH = "data/dashboard_data.csv"; // csv source file
-let cachedDashboardRows = []; // used to populate with all rows in 'dashboard_data.csv'
-let filteredData = []; // the filtered data from brushing in the parallel coordinates plot
+const RESEARCHER_DATA_PATH = "data/dashboard_data.csv";
+let cachedDashboardRows = [];   // all CSV rows
+let activityRows = [];          // rows filtered to selectedActivity
+let filteredRows = [];          // activityRows filtered by PCP brushes
+
+// Current activity selection for PCP (drives scatter + violin too)
+let selectedActivity = "W";
+
 // Violin filter state
-let violinActivity = "All";
 let violinGroup = "All";
-// Default scatter matrix metric selection shown on first render
-let selectedScatterMetricKeys = ["composite_score", "GSI_pct", "step_time_cv_pct", "symmetry_ratio"];
-// Stores active brush ranges per axis
+let violinMetricKey = "";       // set dynamically on activity change
+
+// Scatter metric selection - rebuilt on activity change
+let selectedScatterMetricKeys = [];
+
+// PCP brush state
 const parallelAxisFilters = {};
-let parallelBrushHistory = []; // Tracks chronological order of brushed dimensions
+let parallelBrushHistory = [];
 
 // For finetuning sizings of the plot layout
 const PLOT_LAYOUT = {
@@ -21,52 +30,60 @@ const PLOT_LAYOUT = {
     parallelAxisPadding: 0.08,
     parallelAxisTopLabelOffset: -12,
     parallelAxisBottomLabelOffset: 24,
-    parallelControlsHeightRatio: 0.14, // height preserved for controls
+    parallelControlsHeightRatio: 0.14,
     violinControlsHeightRatio: 0.14
 };
 
-const METRIC_METADATA = {
-    cadence_total_steps_min: { name: "Cadence", unit: "[steps/min]" },
-    GSI_pct: { name: "GSI", unit: "[%]" },
-    gait_index_left_pct: { name: "GIL", unit: "[%]" },
-    gait_index_right_pct: { name: "GIR", unit: "[%]" },
-    symmetry_ratio: { name: "Symmetry Ratio", unit: "[-]" },
-    step_time_mean_sec: { name: "Step Time Mean", unit: "[s]" },
-    cycle_time_mean_sec: { name: "Cycle Time Mean", unit: "[s]" }
-};
+// ─── Metric Info Tooltip Helper ──────────────────────────────────────────
+function showMetricInfoTooltip(event, metricKey) {
+    const tip = document.getElementById("metric-info-tooltip");
+    if (!tip) return;
+    const text = getMetricTooltip(metricKey);
+    tip.textContent = text;
+    tip.style.display = "block";
+    tip.style.left = `${event.pageX + 14}px`;
+    tip.style.top = `${event.pageY - 10}px`;
+}
 
-// Colors for improving, stable, or declining patients used in scatter plot matrix & violin plots
-const GROUP_COLORS = {
-    improving: "#2ecc71",
-    declining: "#e74c3c",
-    stable: "#3498db"
-};
+function moveMetricInfoTooltip(event) {
+    const tip = document.getElementById("metric-info-tooltip");
+    if (!tip) return;
+    tip.style.left = `${event.pageX + 14}px`;
+    tip.style.top = `${event.pageY - 10}px`;
+}
 
-// Scatter matrix: all available metrics
-const SCATTER_METRICS = [
-    { key: "composite_score", name: "Composite Score" },
-    { key: "GSI_pct", name: "GSI (%)" },
-    { key: "symmetry_ratio", name: "Symmetry Ratio" },
-    { key: "step_time_cv_pct", name: "Step Time CV (%)" },
-    { key: "cycle_time_cv_pct", name: "Cycle Time CV (%)" },
-    { key: "cadence_total_steps_min", name: "Cadence (steps/min)" },
-    { key: "gait_index_left_pct", name: "GI Left (%)" },
-    { key: "gait_index_right_pct", name: "GI Right (%)" },
-    { key: "step_time_mean_sec", name: "Step Time (s)" },
-    { key: "total_steps", name: "Total Steps" }
-];
+function hideMetricInfoTooltip() {
+    const tip = document.getElementById("metric-info-tooltip");
+    if (tip) tip.style.display = "none";
+}
 
-const PARALLEL_METRICS = SCATTER_METRICS.slice();
-const PARALLEL_ACTIVITY_ORDER = ["SC", "STS", "TUG", "W"];
+// ─── Activity Change Handler ────────────────────────────────────────────
+// Called when PCP activity dropdown changes. Rebuilds all panels.
+async function onActivityChange(newActivity) {
+    selectedActivity = newActivity;
 
-const VIOLIN_METRICS = [
-    { key: "GSI_pct_norm", name: "GSI" },
-    { key: "symmetry_ratio_norm", name: "Symmetry" },
-    { key: "gait_index_left_pct_norm", name: "GI Left" },
-    { key: "gait_index_right_pct_norm", name: "GI Right" },
-    { key: "step_time_cv_pct_norm", name: "Step CV" },
-    { key: "cycle_time_cv_pct_norm", name: "Cycle CV" }
-];
+    // Filter CSV to selected activity
+    activityRows = cachedDashboardRows.filter(
+        (row) => String(row.activity || "").trim().toUpperCase() === selectedActivity
+    );
+
+    // Clear PCP brushes
+    Object.keys(parallelAxisFilters).forEach((k) => delete parallelAxisFilters[k]);
+    parallelBrushHistory = [];
+
+    // Reset filtered to all activity rows (no brushes active)
+    filteredRows = activityRows.slice();
+
+    // Rebuild scatter metric checkboxes for this activity
+    const metrics = ACTIVITY_METRICS[selectedActivity] || [];
+    selectedScatterMetricKeys = metrics.slice(0, 4);
+
+    // Reset violin metric to first available
+    violinMetricKey = metrics.length > 0 ? metrics[0] : "";
+
+    // Rebuild all panels
+    await renderParallelCoordinatesPlot(activityRows);
+}
 
 // loads the shared header
 async function loadSharedHeader() {
@@ -119,79 +136,17 @@ function getPlotFrame(panelId, reserveTopRatio = 0) {
     return { width, height, margin, plotWidth, plotHeight };
 }
 
-// Checks if a plot row falls within all active brush selections
-// Used to gray out non-selected lines and to filter downstream charts
+// Checks if a row passes all active PCP brush filters
 function rowPassesParallelFilters(row, dimensions) {
-    for (const dimension of dimensions) {
-        const range = parallelAxisFilters[dimension];
+    for (const dim of dimensions) {
+        const range = parallelAxisFilters[dim];
         if (!range) continue;
-        const value = row[dimension];
+        const value = Number(row[dim]);
         if (!Number.isFinite(value) || value < range[0] || value > range[1]) {
             return false;
         }
     }
     return true;
-}
-
-function hasMeaningfulParallelValue(value) {
-    return Number.isFinite(value) && value !== 0;
-}
-
-function buildParallelSessions(rows) {
-    const bySession = new Map();
-    rows.forEach((row) => {
-        const week = Number(row.week);
-        if (!Number.isFinite(week)) return;
-        const userId = String(row.user_id ?? "").trim();
-        const sessionKey = `${userId}::${week}`;
-        const activity = String(row.activity || "").trim().toUpperCase();
-
-        if (!bySession.has(sessionKey)) {
-            bySession.set(sessionKey, {
-                sessionKey,
-                user_id: userId,
-                week,
-                rows: [],
-                byActivity: new Map()
-            });
-        }
-
-        const session = bySession.get(sessionKey);
-        session.rows.push(row);
-        if (activity && !session.byActivity.has(activity)) {
-            session.byActivity.set(activity, row);
-        }
-    });
-    return Array.from(bySession.values());
-}
-
-// Build one axis per metric per activity, then omit axes that are only "", 0 or 0.0.
-function buildParallelDimensionDefs(rows) {
-    const activitiesInData = Array.from(
-        new Set(rows.map((row) => String(row.activity || "").trim().toUpperCase()).filter(Boolean))
-    );
-    const orderedActivities = PARALLEL_ACTIVITY_ORDER.filter((activity) => activitiesInData.includes(activity));
-    const extraActivities = activitiesInData
-        .filter((activity) => !PARALLEL_ACTIVITY_ORDER.includes(activity))
-        .sort();
-    const activityDomain = orderedActivities.concat(extraActivities);
-
-    // Activity-first ordering keeps each row's valid points adjacent,
-    // so paths form visible line segments instead of isolated single points.
-    return activityDomain.flatMap((activity) =>
-        PARALLEL_METRICS
-            .filter((metric) =>
-                rows.some((row) => {
-                    if (String(row.activity || "").trim().toUpperCase() !== activity) return false;
-                    return hasMeaningfulParallelValue(Number(row[metric.key]));
-                })
-            )
-            .map((metric) => ({
-                name: `${metric.name} (${activity})`,
-                key: metric.key,
-                activity
-            }))
-    );
 }
 
 function updateParallelFilterControls(activeFilterCount, filteredCount, totalCount) {
@@ -213,38 +168,29 @@ function updateParallelFilterControls(activeFilterCount, filteredCount, totalCou
     }
 }
 
-// Function which handles the syncing of the filtered data between all plot charts. It calls all other charts with filteredData
-// 1. Counts how many filters are active
-// 2. If no filters -> filteredData = all rows (reset button has been clicked)
-// 3. If filters active -> keep rows passing all active axis filters
-// 4. Update the status text
-// 5. Re-render the other 3 charts with the filtered data in parallel
-async function syncFilteredDatasetFromParallel(parallelRows, dimensions) {
-    const activeFilterCount = Object.values(parallelAxisFilters).filter((range) => Array.isArray(range) && range.length === 2).length;
+// Sync filtered data from PCP brushes → scatter, violin, line plot
+async function syncFilteredDatasetFromParallel(dimensions) {
+    const activeFilterCount = Object.values(parallelAxisFilters)
+        .filter((range) => Array.isArray(range) && range.length === 2).length;
 
     if (!activeFilterCount) {
-        filteredData = cachedDashboardRows.slice();
-    } else if (Array.isArray(parallelRows) && parallelRows.length && Array.isArray(parallelRows[0].__rawRows)) {
-        filteredData = parallelRows
-            .filter((row) => rowPassesParallelFilters(row, dimensions))
-            .flatMap((row) => row.__rawRows);
-    } else if (Array.isArray(parallelRows) && parallelRows.length && parallelRows[0].__raw) {
-        filteredData = parallelRows
-            .filter((row) => rowPassesParallelFilters(row, dimensions))
-            .map((row) => row.__raw);
+        filteredRows = activityRows.slice();
     } else {
-        filteredData = [];
+        filteredRows = activityRows.filter((row) => rowPassesParallelFilters(row, dimensions));
     }
 
-    updateParallelFilterControls(activeFilterCount, filteredData.length, cachedDashboardRows.length);
+    updateParallelFilterControls(activeFilterCount, filteredRows.length, activityRows.length);
+
     await Promise.all([
-        renderLinePlotWithStd(filteredData),
-        renderScatterPlotMatrix(filteredData),
-        renderViolinPlot(filteredData)
+        renderLinePlotWithStd(cachedDashboardRows),
+        renderScatterPlotMatrix(filteredRows),
+        renderViolinPlot(filteredRows)
     ]);
 }
 
-// Parallel coords plot function. Draws one line per patient-week session.
+// ─── Parallel Coordinates Plot (Activity-First) ─────────────────────────
+// Each line = one CSV row (one user × one week for selected activity).
+// Axes = ACTIVITY_METRICS[selectedActivity]. Colored by user_group.
 async function renderParallelCoordinatesPlot(rows) {
     if (!window.d3) {
         console.error("D3 did not load. The parallel coordinates plot cannot render.");
@@ -257,35 +203,55 @@ async function renderParallelCoordinatesPlot(rows) {
     const hostEl = document.getElementById("parallel-coord-plot");
     if (!hostEl) return;
 
-    const dimensionDefs = buildParallelDimensionDefs(rows);
-    const dimensions = dimensionDefs.map((def) => def.name);
-    const keyByDimension = dimensionDefs.reduce((acc, def) => {
-        acc[def.name] = def.key;
-        return acc;
-    }, {});
-
-    const sessions = buildParallelSessions(rows);
-    const data = sessions
-        .map((session, index) => {
-            const next = {
-                __rawRows: session.rows,
-                __index: index,
-                __sessionKey: session.sessionKey
-            };
-            dimensionDefs.forEach((def) => {
-                const sourceRow = session.byActivity.get(def.activity);
-                const value = sourceRow ? Number(sourceRow[def.key]) : NaN;
-                const isPresent = hasMeaningfulParallelValue(value);
-                next[def.name] = isPresent ? value : NaN;
-            });
-            return next;
+    // ── Activity dropdown + legend bar ──
+    const controlsBar = container.append("div").attr("class", "pcp-controls-bar");
+    controlsBar.append("label").text("Activity:");
+    controlsBar
+        .append("select")
+        .attr("id", "pcp-activity-select")
+        .on("change", function () {
+            onActivityChange(this.value);
         })
-        .filter((row) => dimensions.filter((dimension) => Number.isFinite(row[dimension])).length >= 2);
+        .selectAll("option")
+        .data(["W", "TUG", "SC", "STS"])
+        .enter()
+        .append("option")
+        .attr("value", (d) => d)
+        .property("selected", (d) => d === selectedActivity)
+        .text((d) => d);
+
+    // Legend
+    const legend = controlsBar.append("div").attr("class", "pcp-legend");
+    Object.entries(GROUP_COLORS).forEach(([group, color]) => {
+        const item = legend.append("span").attr("class", "pcp-legend-item");
+        item.append("span")
+            .attr("class", "pcp-legend-swatch")
+            .style("background", color);
+        item.append("span").text(group.charAt(0).toUpperCase() + group.slice(1));
+    });
+
+    // ── Dimensions = metric columns for this activity ──
+    const dimensions = (ACTIVITY_METRICS[selectedActivity] || []).slice();
+
+    // Parse numeric values from rows
+    const data = rows
+        .map((row) => {
+            const parsed = { __raw: row };
+            parsed.user_id = row.user_id;
+            parsed.week = row.week;
+            parsed.user_group = String(row.user_group || "").toLowerCase();
+            dimensions.forEach((dim) => {
+                parsed[dim] = Number(row[dim]);
+            });
+            return parsed;
+        })
+        .filter((row) => dimensions.filter((dim) => Number.isFinite(row[dim])).length >= 2);
 
     let isRestoringBrush = false;
     const brushesByDim = {};
     let applyLineStyles = () => {};
 
+    // ── Filter controls (Reset / Undo / Status) ──
     const controls = container
         .append("div")
         .attr("class", "parallel-filter-controls")
@@ -300,16 +266,16 @@ async function renderParallelCoordinatesPlot(rows) {
 
             isRestoringBrush = true;
             parallelBrushHistory = [];
-            Object.keys(parallelAxisFilters).forEach((dimension) => {
-                delete parallelAxisFilters[dimension];
-                if (brushesByDim[dimension]) {
-                    brushesByDim[dimension].group.call(brushesByDim[dimension].brush.move, null);
+            Object.keys(parallelAxisFilters).forEach((dim) => {
+                delete parallelAxisFilters[dim];
+                if (brushesByDim[dim]) {
+                    brushesByDim[dim].group.call(brushesByDim[dim].brush.move, null);
                 }
             });
             isRestoringBrush = false;
 
             applyLineStyles();
-            await syncFilteredDatasetFromParallel(data, dimensions);
+            await syncFilteredDatasetFromParallel(dimensions);
         });
 
     controls
@@ -320,18 +286,18 @@ async function renderParallelCoordinatesPlot(rows) {
         .property("disabled", true)
         .on("click", async () => {
             while (parallelBrushHistory.length > 0) {
-                const lastDimension = parallelBrushHistory.pop();
-                if (parallelAxisFilters[lastDimension]) {
-                    delete parallelAxisFilters[lastDimension];
-                    
+                const lastDim = parallelBrushHistory.pop();
+                if (parallelAxisFilters[lastDim]) {
+                    delete parallelAxisFilters[lastDim];
+
                     isRestoringBrush = true;
-                    if (brushesByDim[lastDimension]) {
-                        brushesByDim[lastDimension].group.call(brushesByDim[lastDimension].brush.move, null);
+                    if (brushesByDim[lastDim]) {
+                        brushesByDim[lastDim].group.call(brushesByDim[lastDim].brush.move, null);
                     }
                     isRestoringBrush = false;
 
                     applyLineStyles();
-                    await syncFilteredDatasetFromParallel(data, dimensions);
+                    await syncFilteredDatasetFromParallel(dimensions);
                     return;
                 }
             }
@@ -340,22 +306,23 @@ async function renderParallelCoordinatesPlot(rows) {
     controls.append("div").attr("class", "parallel-filter-status");
 
     if (!data.length) {
-        container.append("div").attr("class", "parallel-empty").text("No numeric data for parallel coordinates.");
-        filteredData = cachedDashboardRows.slice();
-        updateParallelFilterControls(0, filteredData.length, cachedDashboardRows.length);
+        container.append("div").attr("class", "parallel-empty").text("No data for this activity.");
+        filteredRows = activityRows.slice();
+        updateParallelFilterControls(0, filteredRows.length, activityRows.length);
         await Promise.all([
-            renderLinePlotWithStd(filteredData),
-            renderScatterPlotMatrix(filteredData),
-            renderViolinPlot(filteredData)
+            renderLinePlotWithStd(cachedDashboardRows),
+            renderScatterPlotMatrix(filteredRows),
+            renderViolinPlot(filteredRows)
         ]);
         return;
     }
 
+    // ── SVG sizing ──
     const panelWidth = Math.max(320, hostEl.clientWidth || 0);
     const panelHeight = Math.max(240, hostEl.clientHeight || 0);
     const controlsHeight = panelHeight * PLOT_LAYOUT.parallelControlsHeightRatio;
-    const viewportHeight = Math.max(160, panelHeight - controlsHeight - 18);
-    const axisSpacing = dimensions.length > 20 ? 185 : 160;
+    const viewportHeight = Math.max(160, panelHeight - controlsHeight - 40);
+    const axisSpacing = dimensions.length > 14 ? 120 : 150;
     const chartWidth = Math.max(panelWidth - 20, axisSpacing * (dimensions.length - 1) + 130);
     const chartHeight = viewportHeight;
     const parallelMarginRatio = PLOT_LAYOUT.parallelMarginRatio;
@@ -380,10 +347,10 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("viewBox", `0 0 ${chartWidth} ${chartHeight}`)
         .attr("preserveAspectRatio", "none");
 
+    // Horizontal drag scroll
     let isDragging = false;
     let dragStartX = 0;
     let dragStartScroll = 0;
-    // Makes the parallel coords plot dragable horizontally
     scrollWrap
         .on("mousedown", (event) => {
             if (event.target.closest(".pc-brush")) return;
@@ -394,41 +361,38 @@ async function renderParallelCoordinatesPlot(rows) {
         .on("mousemove", (event) => {
             if (!isDragging) return;
             event.preventDefault();
-            const dx = event.clientX - dragStartX;
-            scrollWrap.node().scrollLeft = dragStartScroll - dx;
+            scrollWrap.node().scrollLeft = dragStartScroll - (event.clientX - dragStartX);
         })
-        .on("mouseup", () => {
-            isDragging = false;
-        })
-        .on("mouseleave", () => {
-            isDragging = false;
-        });
+        .on("mouseup", () => { isDragging = false; })
+        .on("mouseleave", () => { isDragging = false; });
 
     const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const x = d3.scalePoint().domain(dimensions).range([0, plotWidth]).padding(PLOT_LAYOUT.parallelAxisPadding);
 
-    // One vertical scale per axis, linearly scaled, autofitted.
-    const yByDimension = {};
-    dimensions.forEach((dimension) => {
-        const values = data.map((row) => row[dimension]).filter((value) => Number.isFinite(value));
+    // ── One vertical scale per axis ──
+    const yByDim = {};
+    dimensions.forEach((dim) => {
+        const values = data.map((row) => row[dim]).filter(Number.isFinite);
         const extent = d3.extent(values);
         if (!values.length || !Number.isFinite(extent[0]) || !Number.isFinite(extent[1])) {
-            yByDimension[dimension] = d3.scaleLinear().domain([0, 1]).range([plotHeight, 0]);
+            yByDim[dim] = d3.scaleLinear().domain([0, 1]).range([plotHeight, 0]);
             return;
         }
-        yByDimension[dimension] = d3
+        yByDim[dim] = d3
             .scaleLinear()
             .domain(extent[0] === extent[1] ? [extent[0] - 1, extent[1] + 1] : extent)
             .nice()
             .range([plotHeight, 0]);
     });
 
+    // ── Line generator ──
     const line = d3
         .line()
-        .defined(([, value]) => Number.isFinite(value))
-        .x(([dimension]) => x(dimension))
-        .y(([dimension, value]) => yByDimension[dimension](value));
+        .defined(([, val]) => Number.isFinite(val))
+        .x(([dim]) => x(dim))
+        .y(([dim, val]) => yByDim[dim](val));
 
+    // ── Draw polylines (colored by user_group) ──
     const lineSelection = chart
         .selectAll(".pc-line")
         .data(data)
@@ -436,43 +400,46 @@ async function renderParallelCoordinatesPlot(rows) {
         .append("path")
         .attr("class", "pc-line")
         .attr("fill", "none")
-        .attr("d", (row) => line(dimensions.map((dimension) => [dimension, row[dimension]])));
+        .attr("d", (row) => line(dimensions.map((dim) => [dim, row[dim]])));
 
     applyLineStyles = () => {
         lineSelection
-            .attr("stroke", (row) => (rowPassesParallelFilters(row, dimensions) ? "#2563eb" : "#d1d5db"))
-            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.2 : 1))
-            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.45 : 0.08));
+            .attr("stroke", (row) => {
+                if (!rowPassesParallelFilters(row, dimensions)) return "#d1d5db";
+                return GROUP_COLORS[row.user_group] || "#94a3b8";
+            })
+            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.4 : 0.8))
+            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.55 : 0.06));
     };
 
-    const axis = chart
+    // ── Axes ──
+    const tooltip = ensureTooltip();
+    const axisGroups = chart
         .selectAll(".pc-axis")
         .data(dimensions)
         .enter()
         .append("g")
         .attr("class", "pc-axis")
-        .attr("transform", (dimension) => `translate(${x(dimension)},0)`)
-        .each(function(dimension) {
-            d3.select(this).call(d3.axisLeft(yByDimension[dimension]).ticks(5));
+        .attr("transform", (dim) => `translate(${x(dim)},0)`)
+        .each(function (dim) {
+            d3.select(this).call(d3.axisLeft(yByDim[dim]).ticks(5));
         });
 
-    axis
+    // ── Axis labels (with metric info tooltip on hover) ──
+    axisGroups
         .append("text")
         .attr("y", PLOT_LAYOUT.parallelAxisTopLabelOffset)
         .attr("text-anchor", "middle")
         .attr("fill", "#111")
-        .style("font-size", "11px")
-        .text((dimension) => dimension);
+        .style("font-size", "10px")
+        .style("cursor", "help")
+        .text((dim) => dim)
+        .on("mouseover", function (event, dim) { showMetricInfoTooltip(event, dim); })
+        .on("mousemove", function (event) { moveMetricInfoTooltip(event); })
+        .on("mouseout", function () { hideMetricInfoTooltip(); });
 
-    axis
-        .append("text")
-        .attr("y", plotHeight + PLOT_LAYOUT.parallelAxisBottomLabelOffset)
-        .attr("text-anchor", "middle")
-        .attr("fill", "#64748b")
-        .style("font-size", "11px")
-        .text((dimension) => keyByDimension[dimension] || "");
-
-    axis.each(function(dimension) {
+    // ── Brushes ──
+    axisGroups.each(function (dim) {
         const axisGroup = d3.select(this);
         const brush = d3
             .brushY()
@@ -481,36 +448,34 @@ async function renderParallelCoordinatesPlot(rows) {
                 if (isRestoringBrush) return;
 
                 if (!event.selection) {
-                    delete parallelAxisFilters[dimension];
-                    parallelBrushHistory = parallelBrushHistory.filter(d => d !== dimension);
+                    delete parallelAxisFilters[dim];
+                    parallelBrushHistory = parallelBrushHistory.filter((d) => d !== dim);
                 } else {
                     const [top, bottom] = event.selection;
-                    const max = yByDimension[dimension].invert(top);
-                    const min = yByDimension[dimension].invert(bottom);
-                    parallelAxisFilters[dimension] = [Math.min(min, max), Math.max(min, max)];
-                    
-                    // Always make the freshly tweaked brush the most recent action
-                    parallelBrushHistory = parallelBrushHistory.filter(d => d !== dimension);
-                    parallelBrushHistory.push(dimension);
+                    const max = yByDim[dim].invert(top);
+                    const min = yByDim[dim].invert(bottom);
+                    parallelAxisFilters[dim] = [Math.min(min, max), Math.max(min, max)];
+                    parallelBrushHistory = parallelBrushHistory.filter((d) => d !== dim);
+                    parallelBrushHistory.push(dim);
                 }
 
                 applyLineStyles();
-                await syncFilteredDatasetFromParallel(data, dimensions);
+                await syncFilteredDatasetFromParallel(dimensions);
             });
 
         const brushGroup = axisGroup.append("g").attr("class", "pc-brush").call(brush);
-        brushesByDim[dimension] = { brush, group: brushGroup };
+        brushesByDim[dim] = { brush, group: brushGroup };
 
-        const range = parallelAxisFilters[dimension];
+        const range = parallelAxisFilters[dim];
         if (range) {
             isRestoringBrush = true;
-            brushGroup.call(brush.move, [yByDimension[dimension](range[1]), yByDimension[dimension](range[0])]);
+            brushGroup.call(brush.move, [yByDim[dim](range[1]), yByDim[dim](range[0])]);
             isRestoringBrush = false;
         }
     });
 
     applyLineStyles();
-    await syncFilteredDatasetFromParallel(data, dimensions);
+    await syncFilteredDatasetFromParallel(dimensions);
 }
 
 function getStandardDeviation(array) {
@@ -598,11 +563,10 @@ async function renderLinePlotWithStd(rows) {
             "GIR-W-STD": row["GIR-W-STD"],
             "GIL-W-STD": row["GIL-W-STD"]
         }))
-        .filter((row) => Number.isFinite(row.week))
+        .filter((row) => dimensions.every((dimension) => Number.isFinite(row[dimension])))
         .sort((a, b) => a.week - b.week);
 
-    const weeks = data.map((row) => row.week).filter((week) => Number.isFinite(week));
-    if (!data.length || !weeks.length) {
+    if (!data.length || !Number.isFinite(minWeek) || !Number.isFinite(maxWeek)) {
         container.text("No line chart data available.");
         return;
     }
@@ -619,7 +583,7 @@ async function renderLinePlotWithStd(rows) {
     const y = d3.scaleLinear().range([plotHeight, 0]);
     const x = d3.scaleLinear().range([0, plotWidth]);
 
-    x.domain(d3.extent(weeks));
+    x.domain([minWeek, maxWeek]);
     y.domain([-5, 50]);
 
     chart.append("g").call(d3.axisLeft(y));
@@ -640,7 +604,6 @@ async function renderLinePlotWithStd(rows) {
 
         const areaToShade = d3
             .area()
-            .defined((d) => Number.isFinite(d[dimension]) && Number.isFinite(d[`${dimension}-STD`]))
             .x((d) => x(d.week))
             .y0((d) => y(d[dimension] - d[`${dimension}-STD`]))
             .y1((d) => y(d[dimension] + d[`${dimension}-STD`]));
@@ -656,10 +619,9 @@ async function renderLinePlotWithStd(rows) {
         const lineGroup = chart.append("g");
         const line = d3
             .line()
-            .defined((d) => Number.isFinite(d[dimension]))
             .x((d) => x(d.week))
             .y((d) => y(d[dimension]));
-        
+
         lineGroup
             .append("path")
             .datum(data)
@@ -667,8 +629,8 @@ async function renderLinePlotWithStd(rows) {
             .attr("stroke", color(dimension))
             .attr("stroke-width", 1)
             .attr("d", line);
-            
-        lineGroup.selectAll("circle").data(data.filter((d) => Number.isFinite(d[dimension]))).enter().append("circle")
+
+        lineGroup.selectAll("circle").data(data).enter().append("circle")
         .attr("cx", d => x(d.week)).attr("cy", d => y(d[dimension])).attr("r", 3)
         .style('cursor','pointer')
         .on('mouseover', (e, d) => {
@@ -688,8 +650,8 @@ async function renderLinePlotWithStd(rows) {
     chart.selectAll("circle").raise()
 }
 
-// Called on researcher load and checkbox changes:
-// builds the metric checkbox panel and draws the scatter matrix from active selections.
+// ─── Scatter Plot Matrix (activity-aware) ───────────────────────────────
+// Metrics come from ACTIVITY_METRICS[selectedActivity].
 async function renderScatterPlotMatrix(rows = []) {
     if (!window.d3) {
         console.error("D3 did not load. The scatter plot cannot render.");
@@ -700,6 +662,19 @@ async function renderScatterPlotMatrix(rows = []) {
     container.selectAll("*").remove();
     const hostEl = document.getElementById("scatter-plot-matrix");
     if (!hostEl) return;
+
+    // Preserve the expand button
+    if (!hostEl.querySelector(".enlarge-btn")) {
+        const btn = document.createElement("button");
+        btn.className = "enlarge-btn";
+        btn.textContent = "⛶";
+        btn.onclick = () => openResearcherModal("scatter");
+        hostEl.appendChild(btn);
+    }
+
+    // Build metric list from current activity
+    const activityMetricKeys = ACTIVITY_METRICS[selectedActivity] || [];
+    const SCATTER_METRICS = activityMetricKeys.map((key) => ({ key, name: key }));
 
     const parsedRows = rows.map((row) => {
         const next = {
@@ -727,6 +702,17 @@ async function renderScatterPlotMatrix(rows = []) {
             .attr("class", "scatter-empty")
             .text(`Not enough numeric scatter metrics in ${rows.length} rows.`);
         return;
+    }
+
+    // Keep selected keys that are still valid for this activity
+    selectedScatterMetricKeys = selectedScatterMetricKeys.filter((key) =>
+        availableMetrics.some((metric) => metric.key === key)
+    );
+    if (selectedScatterMetricKeys.length < 2) {
+        selectedScatterMetricKeys = availableMetrics.slice(0, 4).map((metric) => metric.key);
+        if (selectedScatterMetricKeys.length < 2) {
+            selectedScatterMetricKeys = availableMetrics.slice(0, 2).map((metric) => metric.key);
+        }
     }
 
     selectedScatterMetricKeys = selectedScatterMetricKeys.filter((key) =>
@@ -770,13 +756,19 @@ async function renderScatterPlotMatrix(rows = []) {
                 }
                 redraw();
             });
-        label.append("span").text(metric.name);
+        label.append("span")
+            .text(metric.name)
+            .style("cursor", "help")
+            .on("mouseover", (event) => showMetricInfoTooltip(event, metric.key))
+            .on("mousemove", (event) => moveMetricInfoTooltip(event))
+            .on("mouseout", () => hideMetricInfoTooltip());
     });
 
     redraw();
 }
 
-// Builds activity/group filters and draws the violin plot for the filtered rows.
+// ─── Violin Plot (activity-aware, single metric) ────────────────────────
+// Follows PCP activity selection. User picks ONE metric + optional group filter.
 async function renderViolinPlot(rows) {
     if (!window.d3) {
         console.error("D3 did not load. The violin plot cannot render.");
@@ -789,30 +781,47 @@ async function renderViolinPlot(rows) {
     const el = document.getElementById("violin-plot");
     if (!el) return;
 
-    const controls = container.append("div").attr("class", "violin-filters");
-    controls.append("label").text("Activity:");
-    controls
-        .append("select")
-        .attr("id", "violin-activity-select")
-        .on("change", function() {
-            violinActivity = this.value;
-            renderViolinPlot(filteredData.length ? filteredData : cachedDashboardRows);
-        })
-        .selectAll("option")
-        .data(["All", "W", "TUG", "STS", "SC"])
-        .enter()
-        .append("option")
-        .attr("value", (d) => d)
-        .property("selected", (d) => d === violinActivity)
-        .text((d) => d);
+    // Preserve expand button
+    if (!el.querySelector(".enlarge-btn")) {
+        const btn = document.createElement("button");
+        btn.className = "enlarge-btn";
+        btn.textContent = "⛶";
+        btn.onclick = () => openResearcherModal("violin");
+        el.appendChild(btn);
+    }
 
+    // Build metric list from current activity
+    const activityMetricKeys = ACTIVITY_METRICS[selectedActivity] || [];
+    if (!violinMetricKey || !activityMetricKeys.includes(violinMetricKey)) {
+        violinMetricKey = activityMetricKeys.length > 0 ? activityMetricKeys[0] : "";
+    }
+
+    const controls = container.append("div").attr("class", "violin-filters");
+
+    // Metric dropdown
+    controls.append("label").text("Metric:");
+    const metricSelect = controls
+        .append("select")
+        .attr("id", "violin-metric-select")
+        .on("change", function () {
+            violinMetricKey = this.value;
+            renderViolinPlot(filteredRows.length ? filteredRows : activityRows);
+        });
+    activityMetricKeys.forEach((key) => {
+        metricSelect.append("option")
+            .attr("value", key)
+            .property("selected", key === violinMetricKey)
+            .text(key);
+    });
+
+    // Group dropdown
     controls.append("label").text("Group:");
     controls
         .append("select")
         .attr("id", "violin-group-select")
         .on("change", function() {
             violinGroup = this.value;
-            renderViolinPlot(filteredData.length ? filteredData : cachedDashboardRows);
+            renderViolinPlot(filteredRows.length ? filteredRows : activityRows);
         })
         .selectAll("option")
         .data(["All", "improving", "declining", "stable"])
@@ -822,26 +831,35 @@ async function renderViolinPlot(rows) {
         .property("selected", (d) => d === violinGroup)
         .text((d) => (d === "All" ? "All" : d.charAt(0).toUpperCase() + d.slice(1)));
 
-    let filteredRows = rows;
-    if (violinActivity !== "All") {
-        filteredRows = filteredRows.filter((row) => String(row.activity || "").toUpperCase() === violinActivity);
-    }
+    // Activity label (read-only - driven by PCP)
+    controls.append("span")
+        .style("margin-left", "auto")
+        .style("color", "#94a3b8")
+        .style("font-size", "11px")
+        .text(`Activity: ${selectedActivity}`);
+
+    // Filter by group
+    let violinRows = rows;
     if (violinGroup !== "All") {
-        filteredRows = filteredRows.filter((row) => String(row.user_group || "").toLowerCase() === violinGroup);
+        violinRows = violinRows.filter((row) => String(row.user_group || "").toLowerCase() === violinGroup);
     }
 
-    const dataByMetric = VIOLIN_METRICS.map(({ key, name }) => ({
-        key,
-        name,
-        values: filteredRows.map((row) => Number(row[key])).filter((v) => Number.isFinite(v))
-    })).filter((entry) => entry.values.length > 0);
+    if (!violinMetricKey) {
+        container.append("div").attr("class", "violin-empty").text("No metric selected.");
+        return;
+    }
+
+    // Extract values for the selected metric
+    const values = violinRows
+        .map((row) => Number(row[violinMetricKey]))
+        .filter((v) => Number.isFinite(v));
 
     const chartWrap = container.append("div").attr("class", "violin-chart-wrap");
     const frame = getPlotFrame("violin-plot", PLOT_LAYOUT.violinControlsHeightRatio);
     if (!frame) return;
     const { width, height, margin, plotWidth, plotHeight } = frame;
 
-    if (!dataByMetric.length) {
+    if (!values.length) {
         chartWrap.append("div").attr("class", "violin-empty").text("No data for selected filters.");
         return;
     }
@@ -862,117 +880,91 @@ async function renderViolinPlot(rows) {
         .attr("preserveAspectRatio", "xMidYMid meet");
 
     const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-    const x = d3.scaleBand().domain(dataByMetric.map((d) => d.name)).range([0, plotWidth]).padding(0.3);
-    const y = d3.scaleLinear().domain([0, 1]).range([plotHeight, 0]);
 
-    chart.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(".1f")));
-    chart.append("g").attr("transform", `translate(0,${plotHeight})`).call(d3.axisBottom(x));
-    chart
-        .append("text")
+    // Y scale auto-fits to data
+    const yExtent = d3.extent(values);
+    const yPad = (yExtent[1] - yExtent[0]) * 0.1 || 1;
+    const y = d3.scaleLinear().domain([yExtent[0] - yPad, yExtent[1] + yPad]).nice().range([plotHeight, 0]);
+
+    chart.append("g").call(d3.axisLeft(y).ticks(6));
+
+    // Metric label on y-axis (with tooltip)
+    chart.append("text")
         .attr("transform", "rotate(-90)")
         .attr("x", -plotHeight / 2)
         .attr("y", -38)
         .attr("text-anchor", "middle")
         .style("font-size", "12px")
-        .text("Normalized value [0-1]");
+        .style("cursor", "help")
+        .text(violinMetricKey)
+        .on("mouseover", (event) => showMetricInfoTooltip(event, violinMetricKey))
+        .on("mousemove", (event) => moveMetricInfoTooltip(event))
+        .on("mouseout", () => hideMetricInfoTooltip());
 
-    // Bandwidth 0.12 is a tuned default that balances smoothing vs. detail.
-    const kde = kernelDensityEstimator(kernelEpanechnikov(0.12), y.ticks(50));
+    // KDE bandwidth scaled to data range
+    const dataRange = yExtent[1] - yExtent[0];
+    const bandwidth = Math.max(0.01, dataRange * 0.08);
+    const kde = kernelDensityEstimator(kernelEpanechnikov(bandwidth), y.ticks(50));
+    const density = kde(values);
+    const maxDensity = d3.max(density, (d) => d[1]) || 1;
+    const violinWidth = plotWidth * 0.6;
+    const xDensity = d3.scaleLinear().domain([-maxDensity, maxDensity]).range([0, violinWidth]);
+    const cx = plotWidth / 2;
+    const violinG = chart.append("g").attr("transform", `translate(${cx - violinWidth / 2},0)`);
 
-    dataByMetric.forEach(({ name, values }) => {
-        const density = kde(values);
-        const maxDensity = d3.max(density, (d) => d[1]) || 1;
-        const bw = x.bandwidth();
-        const xDensity = d3.scaleLinear().domain([-maxDensity, maxDensity]).range([0, bw]);
-        const violinG = chart.append("g").attr("transform", `translate(${x(name)},0)`);
+    violinG
+        .append("path")
+        .datum(density)
+        .attr("fill", fillColor)
+        .attr("fill-opacity", 0.65)
+        .attr("stroke", strokeColor)
+        .attr("stroke-width", 1)
+        .attr(
+            "d",
+            d3
+                .area()
+                .x0((d) => xDensity(-d[1]))
+                .x1((d) => xDensity(d[1]))
+                .y((d) => y(d[0]))
+                .curve(d3.curveCatmullRom)
+        );
 
-        violinG
-            .append("path")
-            .datum(density)
-            .attr("fill", fillColor)
-            .attr("fill-opacity", 0.65)
-            .attr("stroke", strokeColor)
-            .attr("stroke-width", 1)
-            .attr(
-                "d",
-                d3
-                    .area()
-                    .x0((d) => xDensity(-d[1]))
-                    .x1((d) => xDensity(d[1]))
-                    .y((d) => y(d[0]))
-                    .curve(d3.curveCatmullRom)
-            );
+    // Box plot overlay
+    const sorted = values.slice().sort(d3.ascending);
+    const q1 = d3.quantile(sorted, 0.25);
+    const median = d3.quantile(sorted, 0.5);
+    const q3 = d3.quantile(sorted, 0.75);
+    const iqr = q3 - q1;
+    const wLow = Math.max(d3.min(values), q1 - 1.5 * iqr);
+    const wHigh = Math.min(d3.max(values), q3 + 1.5 * iqr);
+    const boxCx = violinWidth / 2;
 
-        const sorted = values.slice().sort(d3.ascending);
-        const q1 = d3.quantile(sorted, 0.25);
-        const median = d3.quantile(sorted, 0.5);
-        const q3 = d3.quantile(sorted, 0.75);
-        const iqr = q3 - q1;
-        const wLow = Math.max(d3.min(values), q1 - 1.5 * iqr);
-        const wHigh = Math.min(d3.max(values), q3 + 1.5 * iqr);
-        const cx = bw / 2;
+    violinG.append("line").attr("x1", boxCx).attr("x2", boxCx).attr("y1", y(wHigh)).attr("y2", y(q3)).attr("stroke", strokeColor).attr("stroke-width", 1);
+    violinG.append("line").attr("x1", boxCx).attr("x2", boxCx).attr("y1", y(q1)).attr("y2", y(wLow)).attr("stroke", strokeColor).attr("stroke-width", 1);
+    violinG.append("rect").attr("x", boxCx - 8).attr("y", y(q3)).attr("width", 16).attr("height", Math.max(1, y(q1) - y(q3))).attr("fill", "#fff").attr("stroke", strokeColor).attr("stroke-width", 1.5);
+    violinG.append("line").attr("x1", boxCx - 8).attr("x2", boxCx + 8).attr("y1", y(median)).attr("y2", y(median)).attr("stroke", "#e74c3c").attr("stroke-width", 2);
 
-        violinG
-            .append("line")
-            .attr("x1", cx)
-            .attr("x2", cx)
-            .attr("y1", y(wHigh))
-            .attr("y2", y(q3))
-            .attr("stroke", strokeColor)
-            .attr("stroke-width", 1);
-        violinG
-            .append("line")
-            .attr("x1", cx)
-            .attr("x2", cx)
-            .attr("y1", y(q1))
-            .attr("y2", y(wLow))
-            .attr("stroke", strokeColor)
-            .attr("stroke-width", 1);
-        violinG
-            .append("rect")
-            .attr("x", cx - 5)
-            .attr("y", y(q3))
-            .attr("width", 10)
-            .attr("height", Math.max(1, y(q1) - y(q3)))
-            .attr("fill", "#fff")
-            .attr("stroke", strokeColor)
-            .attr("stroke-width", 1.5);
-        violinG
-            .append("line")
-            .attr("x1", cx - 5)
-            .attr("x2", cx + 5)
-            .attr("y1", y(median))
-            .attr("y2", y(median))
-            .attr("stroke", "#e74c3c")
-            .attr("stroke-width", 2);
-
-        violinG
-            .append("rect")
-            .attr("x", 0)
-            .attr("y", 0)
-            .attr("width", bw)
-            .attr("height", plotHeight)
-            .attr("fill", "transparent")
-            .on("mouseover", (event) => {
-                const actLabel = violinActivity === "All" ? "All activities" : violinActivity;
-                const grpLabel = violinGroup === "All" ? "All groups" : violinGroup;
-                tooltip
-                    .style("display", "block")
-                    .html(
-                        `<strong>${name}</strong> - ${actLabel}, ${grpLabel}<br>` +
-                        `Median: ${median.toFixed(3)}<br>` +
-                        `Q1: ${q1.toFixed(3)} | Q3: ${q3.toFixed(3)}<br>` +
-                        `Min: ${d3.min(values).toFixed(3)} | Max: ${d3.max(values).toFixed(3)}<br>` +
-                        `n = ${values.length}`
-                    );
-            })
-            .on("mousemove", (event) => {
-                tooltip
-                    .style("left", `${event.pageX + 12}px`)
-                    .style("top", `${event.pageY - 28}px`);
-            })
-            .on("mouseout", () => tooltip.style("display", "none"));
-    });
+    // Hover overlay
+    violinG
+        .append("rect")
+        .attr("x", 0).attr("y", 0).attr("width", violinWidth).attr("height", plotHeight)
+        .attr("fill", "transparent")
+        .on("mouseover", (event) => {
+            const grpLabel = violinGroup === "All" ? "All groups" : violinGroup;
+            tooltip
+                .style("display", "block")
+                .html(
+                    `<strong>${violinMetricKey}</strong> - ${selectedActivity}, ${grpLabel}<br>` +
+                    `Median: ${median.toFixed(3)}<br>` +
+                    `Q1: ${q1.toFixed(3)} | Q3: ${q3.toFixed(3)}<br>` +
+                    `Min: ${d3.min(values).toFixed(3)} | Max: ${d3.max(values).toFixed(3)}<br>` +
+                    `n = ${values.length}`
+                );
+        })
+        .on("mousemove", (event) => {
+            tooltip.style("left", `${event.pageX + 12}px`).style("top", `${event.pageY - 28}px`);
+        })
+        .on("mouseout", () => tooltip.style("display", "none"));
 }
 
 // Helpers for kernel density estimate (used by violin plot)
@@ -1153,9 +1145,19 @@ function ensureTooltip() {
 async function renderDashboard() {
     const rows = await d3.csv(RESEARCHER_DATA_PATH);
     cachedDashboardRows = rows;
-    filteredData = rows.slice();
 
-    await renderParallelCoordinatesPlot(cachedDashboardRows);
+    // Initialize with default activity
+    activityRows = rows.filter(
+        (row) => String(row.activity || "").trim().toUpperCase() === selectedActivity
+    );
+    filteredRows = activityRows.slice();
+
+    // Set initial scatter + violin selections for the default activity
+    const metrics = ACTIVITY_METRICS[selectedActivity] || [];
+    selectedScatterMetricKeys = metrics.slice(0, 4);
+    violinMetricKey = metrics.length > 0 ? metrics[0] : "";
+
+    await renderParallelCoordinatesPlot(activityRows);
 }
 
 function debounce(fn, waitMs) {
@@ -1164,6 +1166,105 @@ function debounce(fn, waitMs) {
         if (timeoutId) clearTimeout(timeoutId);
         timeoutId = setTimeout(() => fn(...args), waitMs);
     };
+}
+
+// ─── Expand / Modal Handler ─────────────────────────────────────────────
+window.addEventListener("openResearcherModal", (e) => {
+    const { type } = e.detail;
+    const modal = document.getElementById("researcher-modal");
+    const container = document.getElementById("researcher-modal-container");
+    const title = document.getElementById("researcher-modal-title");
+    if (!modal || !container) return;
+
+    modal.style.display = "flex";
+    container.innerHTML = "";
+
+    const dataToUse = filteredRows.length ? filteredRows : activityRows;
+
+    if (type === "scatter") {
+        title.textContent = "Scatter Plot Matrix - Detailed View";
+        renderScatterInContainer(dataToUse, container, 800, 700);
+    } else if (type === "violin") {
+        title.textContent = "Violin Plot - Detailed View";
+        renderViolinInContainer(dataToUse, container, 900, 550);
+    }
+});
+
+// ─── Modal renderers (enlarged versions) ────────────────────────────────
+function renderScatterInContainer(rows, containerEl, w, h) {
+    const container = d3.select(containerEl);
+    container.html("");
+    const actMetrics = ACTIVITY_METRICS[selectedActivity] || [];
+    const activeMetrics = actMetrics
+        .filter((key) => selectedScatterMetricKeys.includes(key))
+        .map((key) => ({ key, name: key }));
+    if (activeMetrics.length < 2) {
+        container.append("div").text("Select at least 2 metrics.").style("color", "#94a3b8").style("padding", "20px");
+        return;
+    }
+    const parsedRows = rows.map((row) => {
+        const next = { user_id: row.user_id, week: row.week, activity: row.activity, user_group: row.user_group };
+        activeMetrics.forEach((m) => { next[m.key] = Number(row[m.key]); });
+        return next;
+    });
+    // Use the container's actual available space so the matrix fits inside the modal
+    const availW = containerEl.clientWidth || w;
+    const availH = containerEl.clientHeight || h;
+    const side = Math.min(availW, availH);
+    const wrapEl = container.append("div")
+        .style("width", `${side}px`)
+        .style("height", `${side}px`)
+        .node();
+    drawScatterMatrixSvg(parsedRows, activeMetrics, wrapEl);
+}
+
+function renderViolinInContainer(rows, containerEl, w, h) {
+    const container = d3.select(containerEl);
+    container.html("");
+    if (!violinMetricKey) { container.append("div").text("No metric selected."); return; }
+
+    let violinRows = rows;
+    if (violinGroup !== "All") {
+        violinRows = violinRows.filter((row) => String(row.user_group || "").toLowerCase() === violinGroup);
+    }
+    const values = violinRows.map((row) => Number(row[violinMetricKey])).filter(Number.isFinite);
+    if (!values.length) { container.append("div").text("No data."); return; }
+
+    const margin = { top: 30, right: 40, bottom: 50, left: 60 };
+    const plotWidth = w - margin.left - margin.right;
+    const plotHeight = h - margin.top - margin.bottom;
+
+    const svg = container.append("svg").attr("width", w).attr("height", h);
+    const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const yExtent = d3.extent(values);
+    const yPad = (yExtent[1] - yExtent[0]) * 0.1 || 1;
+    const y = d3.scaleLinear().domain([yExtent[0] - yPad, yExtent[1] + yPad]).nice().range([plotHeight, 0]);
+    chart.append("g").call(d3.axisLeft(y).ticks(8));
+    chart.append("text").attr("transform", "rotate(-90)").attr("x", -plotHeight / 2).attr("y", -45).attr("text-anchor", "middle").style("font-size", "13px").text(violinMetricKey);
+
+    const dataRange = yExtent[1] - yExtent[0];
+    const bandwidth = Math.max(0.01, dataRange * 0.08);
+    const kde = kernelDensityEstimator(kernelEpanechnikov(bandwidth), y.ticks(60));
+    const density = kde(values);
+    const maxDensity = d3.max(density, (d) => d[1]) || 1;
+    const violinWidth = plotWidth * 0.5;
+    const xDensity = d3.scaleLinear().domain([-maxDensity, maxDensity]).range([0, violinWidth]);
+    const violinG = chart.append("g").attr("transform", `translate(${plotWidth / 2 - violinWidth / 2},0)`);
+
+    const fillColor = violinGroup !== "All" ? (GROUP_COLORS[violinGroup] || "#83b2ff") : "#83b2ff";
+    violinG.append("path").datum(density)
+        .attr("fill", fillColor).attr("fill-opacity", 0.65).attr("stroke", "#1a3a8a").attr("stroke-width", 1)
+        .attr("d", d3.area().x0((d) => xDensity(-d[1])).x1((d) => xDensity(d[1])).y((d) => y(d[0])).curve(d3.curveCatmullRom));
+
+    const sorted = values.slice().sort(d3.ascending);
+    const q1 = d3.quantile(sorted, 0.25), median = d3.quantile(sorted, 0.5), q3 = d3.quantile(sorted, 0.75);
+    const iqr = q3 - q1, wLow = Math.max(d3.min(values), q1 - 1.5 * iqr), wHigh = Math.min(d3.max(values), q3 + 1.5 * iqr);
+    const boxCx = violinWidth / 2;
+    violinG.append("line").attr("x1", boxCx).attr("x2", boxCx).attr("y1", y(wHigh)).attr("y2", y(q3)).attr("stroke", "#1a3a8a");
+    violinG.append("line").attr("x1", boxCx).attr("x2", boxCx).attr("y1", y(q1)).attr("y2", y(wLow)).attr("stroke", "#1a3a8a");
+    violinG.append("rect").attr("x", boxCx - 10).attr("y", y(q3)).attr("width", 20).attr("height", Math.max(1, y(q1) - y(q3))).attr("fill", "#fff").attr("stroke", "#1a3a8a").attr("stroke-width", 1.5);
+    violinG.append("line").attr("x1", boxCx - 10).attr("x2", boxCx + 10).attr("y1", y(median)).attr("y2", y(median)).attr("stroke", "#e74c3c").attr("stroke-width", 2);
 }
 
 async function init() {
