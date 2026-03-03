@@ -1284,37 +1284,9 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
                     valid.map((row) => row[rowMetric.key])
                 );
 
-                plotGroup
-                    .selectAll("circle")
-                    .data(valid)
-                    .enter()
-                    .append("circle")
-                    .attr("class", "sc-dot")
-                    .attr("cx", (row) => xScale(row[colMetric.key]))
-                    .attr("cy", (row) => yScale(row[rowMetric.key]))
-                    .attr("r", 3)
-                    .attr("fill", (row) => GROUP_COLORS[String(row.user_group || "").toLowerCase()] || "#9ca3af")
-                    .attr("fill-opacity", 0.5)
-                    .attr("stroke", "none")
-                    .style("pointer-events", "all")
-                    .on("mouseover", (event, row) => {
-                        tooltip
-                            .style("display", "block")
-                            .html(
-                                `User ${row.user_id} | Wk ${row.week} | ${row.activity}<br>` +
-                                `${colMetric.name}: ${Number.isFinite(row[colMetric.key]) ? row[colMetric.key].toFixed(2) : "N/A"}<br>` +
-                                `${rowMetric.name}: ${Number.isFinite(row[rowMetric.key]) ? row[rowMetric.key].toFixed(2) : "N/A"}<br>` +
-                                `Group: <em>${row.user_group || "N/A"}</em>`
-                            );
-                    })
-                    .on("mousemove", (event) => {
-                        tooltip
-                            .style("left", `${event.pageX + 12}px`)
-                            .style("top", `${event.pageY - 28}px`);
-                    })
-                    .on("mouseout", () => tooltip.style("display", "none"));
-
-                // Add lasso brush in expanded mode only
+                // Add lasso brush in expanded mode only — BEFORE circles so circles sit on top
+                // and receive hover events while the brush captures drag in the gaps.
+                // D3 function: d3.brush() — creates a 2D rectangular brush (x + y).
                 if (isExpanded) {
                     const brush = d3.brush()
                         .extent([[0, 0], [innerW, innerH]])
@@ -1371,6 +1343,37 @@ function drawScatterMatrixSvg(data, metrics, wrapEl) {
                     const brushGroup = plotGroup.append("g").attr("class", "sc-lasso-brush").call(brush);
                     cellBrushes.push({ brushRef: brush, groupRef: brushGroup, ri: rowIndex, ci: colIndex });
                 }
+
+                // Draw circles AFTER brush so they render on top → hover tooltips work
+                plotGroup
+                    .selectAll("circle")
+                    .data(valid)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "sc-dot")
+                    .attr("cx", (row) => xScale(row[colMetric.key]))
+                    .attr("cy", (row) => yScale(row[rowMetric.key]))
+                    .attr("r", 3)
+                    .attr("fill", (row) => GROUP_COLORS[String(row.user_group || "").toLowerCase()] || "#9ca3af")
+                    .attr("fill-opacity", 0.5)
+                    .attr("stroke", "none")
+                    .style("pointer-events", "all")
+                    .on("mouseover", (event, row) => {
+                        tooltip
+                            .style("display", "block")
+                            .html(
+                                `User ${row.user_id} | Wk ${row.week} | ${row.activity}<br>` +
+                                `${colMetric.name}: ${Number.isFinite(row[colMetric.key]) ? row[colMetric.key].toFixed(2) : "N/A"}<br>` +
+                                `${rowMetric.name}: ${Number.isFinite(row[rowMetric.key]) ? row[rowMetric.key].toFixed(2) : "N/A"}<br>` +
+                                `Group: <em>${row.user_group || "N/A"}</em>`
+                            );
+                    })
+                    .on("mousemove", (event) => {
+                        tooltip
+                            .style("left", `${event.pageX + 12}px`)
+                            .style("top", `${event.pageY - 28}px`);
+                    })
+                    .on("mouseout", () => tooltip.style("display", "none"));
 
                 cellGroup
                     .append("text")
