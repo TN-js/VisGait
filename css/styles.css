@@ -8,10 +8,10 @@ body {
 }
 
 .patient-content {
-    padding: 30px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
 }
 
 /* --- Professional Header (Three-Column Centered Layout) --- */
@@ -87,7 +87,7 @@ body {
     background: white;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 24px;
+    padding: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
@@ -100,13 +100,46 @@ body {
 .viz-row {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
+}
+
+/* Top two-column layout: left stacked (summary + weighting), right spanning column for the chart */
+.top-grid {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 16px;
+    align-items: stretch;
+}
+.top-grid .left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.top-grid .right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Ensure the right viz box fills the full height of the left stacked column */
+.top-grid .right-column > .viz-box {
+    height: 100%;
+    align-self: stretch;
+}
+
+@media (max-width: 900px) {
+    .top-grid {
+        grid-template-columns: 1fr;
+    }
+    .top-grid .right-column {
+        order: 3;
+    }
 }
 
 .combined-radar-frame {
     display: flex;
     flex-direction: row;
-    min-height: 450px;
+    min-height: 320px;
     gap: 20px;
 }
 
@@ -135,21 +168,21 @@ body {
 }
 
 .welcome-message {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 4px;
 }
 
 .patient-name-large {
-    font-size: 32px;
+    font-size: 22px;
     font-weight: 800;
     color: #1e293b;
     margin: 0;
 }
 
 .week-label-small {
-    font-size: 18px;
+    font-size: 14px;
     color: #94a3b8;
     font-weight: 500;
 }
@@ -157,76 +190,207 @@ body {
 .score-display-large {
     display: flex;
     align-items: baseline;
-    margin-top: 10px;
+    margin-top: 6px;
 }
 
 .score-val-big {
-    font-size: 64px;
+    font-size: 72px;
     font-weight: 800;
 }
 
 .score-max-grey {
-    font-size: 24px;
     color: #cbd5e1;
-    margin-left: 10px;
+    font-size: 14px;
+    margin-left: 8px;
+}
+
+/* Constrain the score row so the progress bar doesn't span full width */
+.score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.score-row .score-display-large {
+    margin-top: 0;
+    flex: 0 0 auto;
+}
+.score-row .progress-container {
+    flex: 0 0 380px;
+    width: 380px;
+    margin: 0; /* override vertical margin to keep row compact */
+}
+
+@media (max-width: 700px) {
+    .score-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .score-row .progress-container {
+        width: 100%;
+        flex: 1 1 auto;
+    }
+}
+
+/* Highlighted summary box when score changes: we color the background and adjust inner text/labels */
+.summary-section {
+    transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease;
+}
+.summary-section .score-max-grey {
+    color: rgba(15,23,42,0.65); /* default subdued */
+}
+.summary-section[style] .score-max-grey {
+    /* when inline style applied (background set via JS) increase contrast */
+    color: rgba(255,255,255,0.9);
+}
+.summary-section[style] .healthy-zone-label,
+.summary-section[style] .threshold-value-green {
+    color: rgba(255,255,255,0.9);
+}
+.summary-section[style] .welcome-message,
+.summary-section[style] .patient-name-large,
+.summary-section[style] .week-label-small {
+    color: #ffffff;
+}
+
+/* Keep the progress bar visually readable on colored backgrounds */
+.summary-section[style] .progress-container {
+    background: rgba(255,255,255,0.18);
+}
+.summary-section[style] .progress-bar {
+    background: rgba(255,255,255,0.9) !important;
+}
+.summary-section[style] .threshold-marker {
+    border-left-color: rgba(255,255,255,0.9);
+}
+
+/* Layout for the summary: score on the right spanning vertically */
+.summary-grid {
+    display: grid;
+    grid-template-columns: 1fr minmax(160px, 260px);
+    gap: 12px;
+    align-items: stretch;
+}
+.summary-grid .summary-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.summary-grid .summary-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.summary-grid .summary-right {
+    position: relative;
+}
+.summary-grid .score-display-large {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    height: 100%;
+    gap: 8px;
+}
+.score-val-big {
+    font-size: 72px;
+    line-height: 1;
+}
+
+/* Anchor the "/100" to the right edge of the summary box */
+.summary-grid .summary-right .score-max-grey {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    top: auto;
+    transform: none;
+    font-size: 16px;
+    color: rgba(255,255,255,0.9);
+}
+
+@media (max-width: 700px) {
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+    .summary-grid .summary-right {
+        order: 2;
+        align-items: flex-start;
+    }
+    .summary-grid .summary-right .score-max-grey {
+        position: static;
+        transform: none;
+        margin-left: 8px;
+        font-size: 14px;
+        color: rgba(15,23,42,0.65);
+    }
 }
 
 /* Threshold / Progress Bar */
 .progress-container {
     position: relative;
     width: 100%;
-    height: 16px;
+    height: 10px;
     background: #f1f5f9;
     border-radius: 50px;
-    margin: 40px 0;
+    margin: 18px 0;
 }
 
 .progress-bar {
     height: 100%;
-    border-radius: 50px;
+    border-radius: 12px;
     width: 0%; /* start collapsed to avoid initial jump animation */
     transition: width 1s ease, background-color 1s ease;
 }
 
 .threshold-marker {
     position: absolute;
-    top: -10px;
-    bottom: -10px;
-    width: 2px;
+    /* shorter extension above and below the progress bar */
+    top: -12px;
+    bottom: -12px;
+    width: 1px;
     border-left: 2px dashed #334155;
+    z-index: 6;
+    pointer-events: none;
 }
 
-.threshold-value-green {
+.threshold-marker .threshold-top {
     position: absolute;
-    top: -25px;
-    left: -10px;
-    color: #10b981;
-    font-weight: 700;
+    /* position the label just above the top of the dashed marker */
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    white-space: nowrap;
+    z-index: 7;
 }
 
-.healthy-zone-label {
-    position: absolute;
-    bottom: -25px;
-    left: -40px;
+.threshold-marker .healthy-zone-label {
     color: #64748b;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
+.threshold-marker .threshold-value-green {
+    color: #10b981;
+    font-weight: 700;
+}
+
 /* --- Interaction Elements --- */
 .enlarge-btn {
     position: absolute;
-    top: 15px;
+    top: 10px;
     right: 15px;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     color: #64748b;
     display: flex;
     align-items: center;
@@ -356,15 +520,50 @@ body {
     border-radius: 8px;
 }
 
+
 #weight-legend {
-    font-size: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    align-items: start;
+}
+
+/* Legend tile: colored box with activity title, percentage below (larger) */
+.legend-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+.legend-box {
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+}
+.legend-item .legend-weight {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
     color: #0f172a;
 }
 
-.legend-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+@media (max-width: 700px) {
+    #weight-legend {
+        grid-template-columns: repeat(2, minmax(0,1fr));
+    }
+}
+
+/* Allow summary to grow and weighting to stay compact */
+.top-grid .left-column .summary-section {
+    flex: 1 1 auto;
+}
+.top-grid .left-column #composite-weighting {
+    flex: 0 0 auto;
 }
 
 .legend-swatch {
