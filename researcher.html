@@ -13,18 +13,36 @@
 
     <main class="researcher-content">
         <div class="researcher-box">
-            <div class="parallel-coord-plot" id="parallel-coord-plot"></div>
-            <div class="line-plot-with-std" id="line-plot-with-std"></div>
-            <div class="scatter-plot-matrix" id="scatter-plot-matrix"></div>
-            <div class="violin-plot" id="violin-plot"></div>
+            <div class="parallel-coord-plot" id="parallel-coord-plot" style="position:relative;"></div>
+            <div class="line-plot-with-std" id="line-plot-with-std" style="position:relative;"></div>
+            <div class="scatter-plot-matrix" id="scatter-plot-matrix" style="position:relative;"></div>
+            <div class="violin-plot" id="violin-plot" style="position:relative;"></div>
         </div>
     </main>
 
-    <!-- <div class="footer">
-        <h2>footer</h2>
-    </div> -->
+    <footer class="disclaimer-footer">
+        Disclaimer: The gait performance data presented in this dashboard is synthetic and generated for demonstration purposes only. It does not represent real patient data.
+    </footer>
 
+    <div id="researcher-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeResearcherModal()">&times;</span>
+            <div id="researcher-modal-container" style="flex:1; display:flex; justify-content:center; align-items:center; overflow:auto;"></div>
+        </div>
+    </div>
+
+    <div id="metric-info-tooltip" class="metric-info-tooltip"></div>
     <div id="vis-tooltip" class="vis-tooltip"></div>
     <script src="js/researcher-view.js"></script>
+    <script>
+        function openResearcherModal(type) {
+            window.dispatchEvent(new CustomEvent("openResearcherModal", { detail: { type } }));
+        }
+        document.addEventListener("click", (event) => {
+            const modal = document.getElementById("researcher-modal");
+            if (!modal) return;
+            if (event.target === modal) closeResearcherModal();
+        });
+    </script>
 </body>
 </html>

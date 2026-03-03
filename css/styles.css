@@ -273,11 +273,20 @@ body {
     position: absolute;
     top: 20px;
     right: 30px;
+    z-index: 3100; /* Keep X above fullscreen plot content */
     color: #94a3b8;
     font-size: 35px;
     font-weight: bold;
     cursor: pointer;
     transition: color 0.2s;
+    background: rgba(255, 255, 255, 0.96);
+    width: 34px;
+    height: 34px;
+    line-height: 1;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .close-modal:hover {
@@ -390,7 +399,7 @@ body {
 }
 /* --- Researcher 2x2 Grid --- */
 .researcher-content {
-    padding: 24px;
+    padding: 6px;
     display: flex;
     min-height: 0;
     overflow: visible;
@@ -398,7 +407,7 @@ body {
 
 .researcher-box {
     width: 100%;
-    height: clamp(620px, 76vh, 920px);
+    height: clamp(640px, 80vh, 960px);
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -411,6 +420,7 @@ body {
 .line-plot-with-std,
 .scatter-plot-matrix,
 .violin-plot {
+    position: relative;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
@@ -454,15 +464,67 @@ body {
 }
 
 .parallel-filter-controls {
-    position: static;
-    align-self: flex-end;
     display: flex;
     align-items: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 6px 8px;
+    padding: 6px 10px;
+}
+
+.pcp-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 56px 2px 6px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+.pcp-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    font-size: 12px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    border-bottom: none;
+}
+
+.pcp-controls-bar label {
+    color: #475569;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pcp-legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+}
+
+.pcp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pcp-legend-swatch {
+    width: 14px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.parallel-coord-plot .pcp-controls-bar {
+    background: transparent;
+    z-index: 18;
+}
+
+.parallel-coord-plot .parallel-filter-controls {
+    z-index: 18;
 }
 
 .parallel-filter-controls button {
@@ -512,7 +574,7 @@ body {
     /* border-right draws the dividing line between the panel and the chart */
     width: 156px;
     min-width: 156px;
-    padding: 8px;
+    padding: 46px 8px 8px;
     overflow-y: auto;
     border-right: 1px solid #e2e8f0;
     display: flex;
@@ -544,6 +606,28 @@ body {
     color: #1e293b;
 }
 
+.linechart-check-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 4px;
+    line-height: 1.45;
+    color: #1e293b;
+}
+
+.linechart-check-label:hover {
+    background: #e8efff;
+}
+
+.color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
 .scatter-check-label:hover {
     /* highlights it blue on hover */
     background: #e8efff;
@@ -555,6 +639,8 @@ body {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    box-sizing: border-box;
+    padding-right: 64px;
 }
 
 .scatter-empty {
@@ -619,6 +705,72 @@ body {
     pointer-events: none;
     z-index: 3000;
     max-width: 240px;
+}
+
+.metric-info-tooltip {
+    display: none;
+    position: fixed;
+    background: #ffffff;
+    color: #1e293b;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+    z-index: 4000;
+    max-width: 280px;
+}
+
+.disclaimer-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    padding: 12px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    line-height: 1.5;
+}
+
+.modal-plot-copy {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.parallel-coord-plot .enlarge-btn,
+.line-plot-with-std .enlarge-btn,
+.scatter-plot-matrix .enlarge-btn,
+.violin-plot .enlarge-btn {
+    z-index: 20;
+}
+
+#researcher-modal .modal-content {
+    width: 96%;
+    height: 92%;
+    padding: 18px;
+}
+
+.modal-plot-placeholder {
+    width: 100%;
+    height: 100%;
+}
+
+.modal-plot-live {
+    width: 100%;
+    height: 100%;
+}
+
+.modal-plot-live .enlarge-btn {
+    display: none !important;
+}
+
+#researcher-modal-container .parallel-coord-plot.modal-plot-live {
+    width: 100%;
+    height: 50%;
+    align-self: center;
 }
 
 @media (max-width: 980px) {
