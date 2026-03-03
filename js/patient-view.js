@@ -15,7 +15,7 @@ let globalCompositeData = [];
 let activityDataSets = {};    
 let selectedPatientId = 1;
 let selectedWeek = null;
-let selectedActivity = "W"; 
+let selectedActivity = null;
 // Weighting state and derived data
 let sliderPositions = [25, 50, 75]; // three handles (percents)
 let currentWeights = [25, 25, 25, 25];
@@ -130,15 +130,20 @@ function updateSummaryHeader(data) {
     const score = data.composite_score_overall;
     const color = scoreColorScale(score);
     d3.select("#week-display").text(`Week ${data.week}`);
-    d3.select("#score-val-big").text(score.toFixed(1)).style("color", color);
-    d3.select("#health-bar").style("width", `${score}%`).style("background-color", color);
+    d3.select("#score-val-big").text(score.toFixed(1));
+    // set progress width but keep its color neutral; highlight the whole summary box instead
+    d3.select("#health-bar").style("width", `${score}%`).style("background-color", "rgba(255,255,255,0.9)");
+
+    // apply background highlight to the summary section and ensure readable text
+    const summary = d3.select('.summary-section');
+    summary.style('background-color', color).style('color', '#ffffff').style('border-color', color);
 }
 
 /**
  * 4. NEW VISUALIZATION: WEEKLY ACTIVITY BARS
  */
-function renderActivityBars(week) {
-    const container = d3.select("#activity-bars-container");
+function renderActivityBars(week, target = "#activity-bars-container") {
+    const container = d3.select(target);
     container.selectAll("*").remove();
 
     ACTIVITIES.forEach(act => {
@@ -146,17 +151,19 @@ function renderActivityBars(week) {
         const score = data ? data.composite_score : 0;
         const color = scoreColorScale(score);
 
-        const row = container.append("div").style("display", "flex").style("align-items", "center").style("gap", "15px").style("margin-bottom", "10px");
-        // label with colored swatch
-        const labelWrap = row.append("div").style("width", "140px").style("font-size", "14px").style("font-weight", "600").style("display","flex").style("align-items","center").style("gap","10px");
-        labelWrap.append("div").style("width","12px").style("height","12px").style("border-radius","50%").style("background", ACTIVITY_COLORS[act]);
-        labelWrap.append("div").style("flex","1").style("text-overflow","ellipsis").style("overflow","hidden").style("white-space","nowrap").text(ACTIVITY_NAMES[act]);
-        
-        const barBg = row.append("div").style("flex", "1").style("background", "#f1f5f9").style("height", "12px").style("border-radius", "6px").style("overflow", "hidden");
+        const item = container.append("div").style("display", "flex").style("flex-direction", "column").style("gap", "8px").style("margin-bottom", "6px");
+
+        // label above the bar (color dot + title)
+        const labelTop = item.append("div").style("display","flex").style("align-items","center").style("gap","8px").style("justify-content","flex-start");
+        labelTop.append("div").style("width","12px").style("height","12px").style("border-radius","50%").style("background", ACTIVITY_COLORS[act]);
+        labelTop.append("div").style("font-size","14px").style("font-weight","600").text(ACTIVITY_NAMES[act]);
+
+        // bar row: bar + numeric value
+        const barRow = item.append("div").style("display","flex").style("align-items","center").style("gap","12px");
+        const barBg = barRow.append("div").style("flex", "1").style("background", "#f1f5f9").style("height", "12px").style("border-radius", "6px").style("overflow", "hidden");
         barBg.append("div").style("width", "0%").style("height", "100%").style("background", color)
             .transition().duration(800).style("width", `${score}%`);
-
-        row.append("div").style("width", "35px").style("text-align", "right").style("font-weight", "bold").text(Math.round(score));
+        barRow.append("div").style("width", "40px").style("text-align", "right").style("font-weight", "700").text(Math.round(score));
     });
 }
 
@@ -183,9 +190,9 @@ function setupCompositeWeightingUI() {
             if (p3 <= p2) h3.value = +h2.value + 1;
 
             sliderPositions = [+h1.value, +h2.value, +h3.value];
-            // raw segments based on positions
+            // raw segments based on handle positions (ensures visual segments match handle locations)
             const raw = [sliderPositions[0], sliderPositions[1] - sliderPositions[0], sliderPositions[2] - sliderPositions[1], 100 - sliderPositions[2]];
-            // subtract 1 reserved unit from each segment so 0% becomes achievable
+            // subtract 1 reserved unit from each segment so 0% becomes achievable for weights
             const effective = raw.map(v => Math.max(0, v - 1));
             const sumEff = effective.reduce((s, x) => s + x, 0);
             if (sumEff > 0) {
@@ -194,23 +201,23 @@ function setupCompositeWeightingUI() {
                 currentWeights = [25, 25, 25, 25];
             }
 
-            // update segments width and colors
-            segs.forEach((s, i) => { s.style.width = currentWeights[i] + '%'; s.style.background = ACTIVITY_COLORS[ACTIVITIES[i]]; });
+            // update segments width and colors using raw percentages so handles align visually
+            segs.forEach((s, i) => { s.style.width = raw[i] + '%'; s.style.background = ACTIVITY_COLORS[ACTIVITIES[i]]; });
 
             // update thumbs positions
             t1.style.left = `${sliderPositions[0]}%`;
             t2.style.left = `${sliderPositions[1]}%`;
             t3.style.left = `${sliderPositions[2]}%`;
 
-            // update legend
+            // update legend: emit compact tiles (activity name in colored box, percent below)
             legend.innerHTML = '';
             ACTIVITIES.forEach((act, i) => {
-                const row = document.createElement('div'); row.className = 'legend-row';
-                const sw = document.createElement('div'); sw.className = 'legend-swatch'; sw.style.background = ACTIVITY_COLORS[act];
-                const label = document.createElement('div'); label.className = 'legend-label'; label.textContent = ACTIVITY_NAMES[act];
+                const item = document.createElement('div'); item.className = 'legend-item';
+                const box = document.createElement('div'); box.className = 'legend-box'; box.style.background = ACTIVITY_COLORS[act]; box.textContent = ACTIVITY_NAMES[act];
                 const weight = document.createElement('div'); weight.className = 'legend-weight'; weight.textContent = `${Math.round(currentWeights[i])}%`;
-                row.appendChild(sw); row.appendChild(label); row.appendChild(weight);
-                legend.appendChild(row);
+                item.appendChild(box);
+                item.appendChild(weight);
+                legend.appendChild(item);
             });
 
             // recompute derived composite and update views
@@ -321,8 +328,38 @@ function renderLineChart(data, target = "#line-chart", defaultW = 700, h = 300) 
     const pad = (yMax - yMin) * 0.1; // 10% padding
     const y = d3.scaleLinear().domain([yMin - pad, yMax + pad]).range([height, 0]).nice();
 
-    svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(Math.max(data.length, 4)));
-    svg.append("g").call(d3.axisLeft(y));
+    // create axes and style ticks/lines for better readability
+    const gx = svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(Math.max(data.length, 4)));
+    gx.selectAll('text').style('font-size', '14px').style('fill', '#475569');
+    gx.selectAll('line').style('stroke', '#e2e8f0');
+    gx.selectAll('path').style('stroke', '#94a3b8');
+
+    const gy = svg.append("g").call(d3.axisLeft(y));
+    gy.selectAll('text').style('font-size', '14px').style('fill', '#475569');
+    gy.selectAll('line').style('stroke', '#e2e8f0');
+    gy.selectAll('path').style('stroke', '#94a3b8');
+
+    // Axis labels (slightly larger for readability)
+    svg.append('text')
+        .attr('class', 'axis-label x-axis-label')
+        .attr('text-anchor', 'middle')
+        .attr('x', width / 2)
+        .attr('y', height + margin.bottom - 8)
+        .attr('fill', '#475569')
+        .style('font-size', '15px')
+        .style('font-weight', 600)
+        .text('Week');
+
+    svg.append('text')
+        .attr('class', 'axis-label y-axis-label')
+        .attr('text-anchor', 'middle')
+        .attr('transform', `rotate(-90)`)
+        .attr('x', -height / 2)
+        .attr('y', -margin.left + 14)
+        .attr('fill', '#475569')
+        .style('font-size', '15px')
+        .style('font-weight', 600)
+        .text('Overall Composite Score');
 
     const line = d3.line().x(d => x(d.week)).y(d => y(d.composite_score_overall));
     svg.append("path").datum(data).attr("fill", "none").attr("stroke", "#3b82f6").attr("stroke-width", 2.5).attr("d", line);
@@ -346,7 +383,7 @@ function renderLineChart(data, target = "#line-chart", defaultW = 700, h = 300) 
         .on('mouseout', () => { tooltip.style('opacity', 0); });
 }
 
-function renderRadarCharts(isEnlarged = false) {
+function renderRadarCharts(mode = 'both', isEnlarged = false) {
     const targetAct = isEnlarged ? "#modal-radar-act" : "#radar-activities";
     const targetMet = isEnlarged ? "#modal-radar-met" : "#radar-metrics";
     const size = isEnlarged ? 400 : 260;
@@ -358,6 +395,30 @@ function renderRadarCharts(isEnlarged = false) {
 
     // helper to compute metric values and draw metric radar for a given activity
     function drawMetricRadarFor(activity) {
+        const container = d3.select(targetMet);
+        container.selectAll("*").remove();
+
+        // update title (if present) to reflect selected activity or default
+        try {
+            const titleElId = isEnlarged ? 'modal-title' : 'radar-metrics-title';
+            const titleEl = document.getElementById(titleElId);
+            if (titleEl) titleEl.textContent = activity ? `${ACTIVITY_NAMES[activity] || activity} Performance` : 'Activity Performance';
+        } catch (e) { /* ignore in non-browser or missing DOM */ }
+
+        if (!activity) {
+            container.append('div')
+                .attr('class', 'radar-placeholder')
+                .style('height', size + 'px')
+                .style('display', 'flex')
+                .style('align-items', 'center')
+                .style('justify-content', 'center')
+                .style('color', '#64748b')
+                .style('font-size', '15px')
+                .style('padding', '10px')
+                .text('Click on an activity on the left to view its performance metrices');
+            return;
+        }
+
         const actWeekData = activityDataSets[activity]?.find(d => d.week === selectedWeek);
         const metricValues = (ACTIVITY_METRICS[activity] || []).map(k => {
             const axisRaw = k.replace(/_norm|_pct/g, '').replace(/_/g, ' ').trim();
@@ -372,14 +433,25 @@ function renderRadarCharts(isEnlarged = false) {
         drawRadar(targetMet, [{ values: metricValues }], null, size);
     }
 
-    // draw activity breakdown radar; clicking an axis/point will only update the metric radar
-    drawRadar(targetAct, [{ values: activityScores }], (d) => {
-        selectedActivity = d.axis;
-        drawMetricRadarFor(selectedActivity);
-    }, size);
+    // draw activity breakdown radar (if requested)
+    if (mode === 'both' || mode === 'act') {
+        const actOnClick = (d) => {
+            selectedActivity = d.axis;
+            if (isEnlarged && mode === 'act') {
+                // in enlarged activities view, clicking an activity will switch modal to metrics for that activity
+                try { document.getElementById('modal-title').textContent = `${ACTIVITY_NAMES[selectedActivity] || selectedActivity} Performance`; } catch (e) {}
+                renderRadarCharts('met', true);
+            } else {
+                drawMetricRadarFor(selectedActivity);
+            }
+        };
+        drawRadar(targetAct, [{ values: activityScores }], actOnClick, size);
+    }
 
-    // initial draw of metric radar for the currently selected activity
-    drawMetricRadarFor(selectedActivity);
+    // draw metric radar (if requested)
+    if (mode === 'both' || mode === 'met') {
+        drawMetricRadarFor(selectedActivity);
+    }
 }
 
 function drawRadar(containerId, data, onClick, size) {
@@ -406,6 +478,8 @@ function drawRadar(containerId, data, onClick, size) {
             .attr("x", 0)
             .attr("y", -r)
             .attr("dy", "-0.25em")
+            .style('font-size', '12px')
+            .style('fill', '#475569')
             .text(levelValue);
     }
 
@@ -414,7 +488,7 @@ function drawRadar(containerId, data, onClick, size) {
     axis.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
         .attr("x", (d, i) => rScale(115) * Math.cos(angleSlice*i - Math.PI/2))
         .attr("y", (d, i) => rScale(115) * Math.sin(angleSlice*i - Math.PI/2))
-        .text(d => d.displayName || d.axis).style("font-size", "13px").style("cursor", onClick ? "pointer" : "default")
+        .text(d => d.displayName || d.axis).style("font-size", "15px").style('font-weight', 600).style("cursor", onClick ? "pointer" : "default")
         .on("click", onClick ? (e, d) => onClick({axis: d.axis}) : null);
 
     // Polygon with enter transition
@@ -441,7 +515,7 @@ function drawRadar(containerId, data, onClick, size) {
     // Points (drawn per-vertex) with tooltip and activity-color mapping; animate from center out
     try {
         // ensure tooltip has sensible inline styles if stylesheet is missing
-        tooltip.style("position", "absolute").style("pointer-events", "none").style("background", "#ffffff").style("color", "#0f172a").style("padding", "6px 8px").style("border", "1px solid #e2e8f0").style("border-radius", "6px").style("font-size", "12px").style("min-width","36px");
+        tooltip.style("position", "absolute").style("pointer-events", "none").style("background", "#ffffff").style("color", "#0f172a").style("padding", "6px 8px").style("border", "1px solid #e2e8f0").style("border-radius", "6px").style("font-size", "13px").style("min-width","36px");
 
         const points = svg.selectAll('.radar-point').data(finalVals);
 
@@ -496,10 +570,30 @@ window.addEventListener('openModal', (e) => {
     container.innerHTML = '';
 
     if (type === 'line') {
-        renderLineChart(globalCompositeData, '#modal-chart-container', 1000, 500);
+        // Prefer the derived composite (respecting user weights) when available
+        const lineData = (derivedCompositeData && derivedCompositeData.length) ? derivedCompositeData : globalCompositeData;
+        document.getElementById('modal-title').textContent = 'Weekly Progress';
+        renderLineChart(lineData, '#modal-chart-container', 1000, 500);
+    } else if (type === 'radar-act' || type === 'radar') {
+        // enlarge activities overview only
+        document.getElementById('modal-title').textContent = 'Activities Overview';
+        container.innerHTML = '<div id="modal-radar-act"></div>';
+        renderRadarCharts('act', true);
+    } else if (type === 'radar-met') {
+        // enlarge metrics radar only
+        const title = selectedActivity ? `${ACTIVITY_NAMES[selectedActivity] || selectedActivity} Performance` : 'Activity Performance';
+        document.getElementById('modal-title').textContent = title;
+        container.innerHTML = '<div id="modal-radar-met"></div>';
+        renderRadarCharts('met', true);
+    } else if (type === 'weekly') {
+        document.getElementById('modal-title').textContent = 'Weekly Activity Performance';
+        container.innerHTML = '<div id="modal-activity-bars" style="width:100%;"></div>';
+        renderActivityBars(selectedWeek, '#modal-activity-bars');
     } else {
+        // fallback: render both radars
+        document.getElementById('modal-title').textContent = 'Activity Radars';
         container.innerHTML = '<div id="modal-radar-act"></div><div id="modal-radar-met"></div>';
-        renderRadarCharts(true);
+        renderRadarCharts('both', true);
     }
 });
 
