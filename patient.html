@@ -65,7 +65,7 @@
                         <div style="margin-top:12px;">
                             <div id="weight-legend"></div>
                             <div style="margin-top:10px; display:flex; justify-content:center;">
-                                <button id="reset-weights" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;width:160px;">Reset to Defaults</button>
+                                <button id="reset-weights" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;width:240px;">Reset to Defaults</button>
                             </div>
                         </div>
                     </div>
@@ -81,21 +81,22 @@
                 </div>
             </div>
         </section>
-            <div class="combined-row" style="grid-column: 1 / -1; display:flex; gap:16px; margin-top:24px; align-items:stretch;">
-                <div class="viz-box radar-column" style="flex:1; display:flex; flex-direction:column;">
+            <div class="combined-row" style="grid-column: 1 / -1; display:flex; gap:6px; margin-top:0px; align-items:stretch;">
+                <div class="viz-box" style="flex:2; display:flex; flex-direction:column;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h3 style="margin:0 0 12px 0;">Activities Overview</h3>
-                        <button class="enlarge-btn" onclick="openEnlargedChart('radar')">⛶</button>
+                        <h3 style="margin:0 0 12px 0;">Activity Analysis</h3>
+                        <button class="enlarge-btn" onclick="openEnlargedChart('radar-combined')">⛶</button>
                     </div>
-                    <div id="radar-activities" style="flex:1; display:flex; align-items:center; justify-content:center;"></div>
-                </div>
-
-                <div class="viz-box radar-column" style="flex:1; display:flex; flex-direction:column;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h3 id="radar-metrics-title" style="margin:0 0 12px 0;">Activity Performance</h3>
-                        <button class="enlarge-btn" onclick="openEnlargedChart('radar-met')">⛶</button>
+                    <div style="flex:1; display:flex; gap:20px; align-items:center; justify-content:center;">
+                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+                            <h4 style="margin:0 0 8px 0; font-size:14px; color:#64748b;">Activities Overview</h4>
+                            <div id="radar-activities" style="flex:1; display:flex; align-items:center; justify-content:center;"></div>
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+                            <h4 id="radar-metrics-title" style="margin:0 0 8px 0; font-size:14px; color:#64748b;">Activity Performance</h4>
+                            <div id="radar-metrics" style="flex:1; display:flex; align-items:center; justify-content:center;"></div>
+                        </div>
                     </div>
-                    <div id="radar-metrics" style="flex:1; display:flex; align-items:center; justify-content:center;"></div>
                 </div>
 
                 <div class="viz-box" id="weekly-activity-box" style="flex:1; display:flex; flex-direction:column;">
@@ -103,7 +104,7 @@
                         <h3 style="margin:0 0 12px 0;">Weekly Activity Performance</h3>
                         <button class="enlarge-btn" onclick="openEnlargedChart('weekly')">⛶</button>
                     </div>
-                    <div id="activity-bars-container" style="display:flex; flex-direction:column; gap:16px; padding:10px; flex:1; justify-content:center;">
+                    <div id="activity-bars-container" style="display:flex; flex-direction:column; gap:6px; padding:10px; flex:1; justify-content:center;">
                     </div>
                 </div>
             </div>

@@ -3,16 +3,39 @@ import { loadSharedHeader } from "./main.js";
 // Configuration
 const ACTIVITY_NAMES = { "SC": "Stair Climbing", "STS": "Sit-To-Stand", "TUG": "Timed Up & Go", "W": "Walking" };
 const ACTIVITIES = ["SC", "STS", "TUG", "W"];
+const ALL_PATIENTS_DATA_PATH = "data/dashboard_data.csv";
 const ACTIVITY_METRICS = {
-    "W": ["IPI_left_mean_sec", "IPI_left_std_sec", "IPI_right_mean_sec", "IPI_right_std_sec", "cadence_total_steps_min", "symmetry_ratio", "GA_signed_pct"],
-    "STS": ["step_time_mean_sec", "step_time_std_sec", "cycle_time_mean_sec", "cycle_time_std_sec"],
-    "TUG": ["IPI_left_mean_sec", "IPI_left_std_sec", "IPI_right_mean_sec", "IPI_right_std_sec", "cadence_total_steps_min", "symmetry_ratio", "GA_signed_pct"],
-    "SC": ["step_time_mean_sec", "step_time_std_sec", "cycle_time_mean_sec", "cycle_time_std_sec"]
+    "W": ["IPI_left_mean_sec", "IPI_left_std_sec", "IPI_right_mean_sec", "IPI_right_std_sec", "cadence_total_steps_min", "symmetry_ratio", "GA_signed_pct", "composite_score"],
+    "STS": ["step_time_mean_sec", "step_time_std_sec", "cycle_time_mean_sec", "cycle_time_std_sec", "composite_score"],
+    "TUG": ["IPI_left_mean_sec", "IPI_left_std_sec", "IPI_right_mean_sec", "IPI_right_std_sec", "cadence_total_steps_min", "symmetry_ratio", "GA_signed_pct", "composite_score"],
+    "SC": ["step_time_mean_sec", "step_time_std_sec", "cycle_time_mean_sec", "cycle_time_std_sec", "composite_score"]
+};
+const METRIC_UNITS = {
+    step_time_mean_sec: "s",
+    step_time_std_sec: "s",
+    cycle_time_mean_sec: "s",
+    cycle_time_std_sec: "s",
+    IPI_left_mean_sec: "s",
+    IPI_left_std_sec: "s",
+    IPI_right_mean_sec: "s",
+    IPI_right_std_sec: "s",
+    cadence_total_steps_min: "steps/min",
+    symmetry_ratio: "-",
+    GA_signed_pct: "%",
+    GSI_pct: "%",
+    gait_index_left_pct: "%",
+    gait_index_right_pct: "%",
+    step_time_cv_pct: "%",
+    cycle_time_cv_pct: "%",
+    total_duration_sec: "s",
+    total_peaks: ""
 };
 
 // Global State
 let globalCompositeData = []; 
-let activityDataSets = {};    
+let activityDataSets = {};
+let globalActivityMetricLookup = {};
+let hasLoadedGlobalActivityMetricLookup = false;
 let selectedPatientId = 1;
 let selectedWeek = null;
 let selectedActivity = null;
@@ -36,13 +59,99 @@ function percentileRankFromSortedValues(sortedValues, value) {
     return averageRankZeroBased / (sortedValues.length - 1);
 }
 
+function getTrackedMetricKeys() {
+    return Array.from(new Set(Object.values(ACTIVITY_METRICS).flat()));
+}
+
+function buildActivityMetricLookup(rows, metricKeys) {
+    const lookup = {};
+    rows.forEach((row) => {
+        const activity = String(row.activity || "").trim().toUpperCase();
+        if (!activity) return;
+        if (!lookup[activity]) lookup[activity] = {};
+
+        metricKeys.forEach((metricKey) => {
+            const numericValue = Number(row[metricKey]);
+            if (!Number.isFinite(numericValue)) return;
+            if (!lookup[activity][metricKey]) lookup[activity][metricKey] = [];
+            lookup[activity][metricKey].push(numericValue);
+        });
+    });
+
+    Object.keys(lookup).forEach((activity) => {
+        Object.keys(lookup[activity]).forEach((metricKey) => {
+            lookup[activity][metricKey].sort((a, b) => a - b);
+        });
+    });
+
+    return lookup;
+}
+
+async function ensureGlobalActivityMetricLookup() {
+    if (hasLoadedGlobalActivityMetricLookup) return;
+    const rows = await d3.csv(ALL_PATIENTS_DATA_PATH);
+    globalActivityMetricLookup = buildActivityMetricLookup(rows, getTrackedMetricKeys());
+    hasLoadedGlobalActivityMetricLookup = true;
+    // Also load means at the same time
+    if (!hasLoadedGlobalMeans) {
+        globalMeanValuesByActivity = computeMeanValuesByActivity(rows, getTrackedMetricKeys());
+        hasLoadedGlobalMeans = true;
+    }
+}
+
 function getActivityMetricPercentile(activity, metricKey, value) {
-    const activityRows = activityDataSets[activity] || [];
-    const sortedValues = activityRows
+    const activityCode = String(activity || "").trim().toUpperCase();
+    const globalSortedValues = globalActivityMetricLookup?.[activityCode]?.[metricKey];
+    const fallbackSortedValues = (activityDataSets[activityCode] || [])
         .map((row) => Number(row[metricKey]))
         .filter((v) => Number.isFinite(v))
         .sort((a, b) => a - b);
+    const sortedValues = (Array.isArray(globalSortedValues) && globalSortedValues.length) ? globalSortedValues : fallbackSortedValues;
     return percentileRankFromSortedValues(sortedValues, Number(value));
+}
+
+function formatMetricValueWithUnit(value, unit) {
+    if (!Number.isFinite(value)) return "N/A";
+    const formatted = value.toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+    if (!unit || unit === '-') return formatted;
+    return `${formatted} ${unit}`;
+}
+
+function computeMeanValuesByActivity(rows, metricKeys) {
+    const byActivity = {};
+    rows.forEach(row => {
+        const activity = String(row.activity || "").trim().toUpperCase();
+        if (!activity) return;
+        if (!byActivity[activity]) byActivity[activity] = {};
+        
+        metricKeys.forEach(metricKey => {
+            const val = Number(row[metricKey]);
+            if (!Number.isFinite(val)) return;
+            if (!byActivity[activity][metricKey]) byActivity[activity][metricKey] = { sum: 0, count: 0 };
+            byActivity[activity][metricKey].sum += val;
+            byActivity[activity][metricKey].count += 1;
+        });
+    });
+    
+    const means = {};
+    Object.keys(byActivity).forEach(activity => {
+        means[activity] = {};
+        Object.keys(byActivity[activity]).forEach(metricKey => {
+            const { sum, count } = byActivity[activity][metricKey];
+            means[activity][metricKey] = count > 0 ? sum / count : 0;
+        });
+    });
+    return means;
+}
+
+let globalMeanValuesByActivity = {};
+let hasLoadedGlobalMeans = false;
+
+async function ensureGlobalMeans() {
+    if (hasLoadedGlobalMeans) return;
+    const rows = await d3.csv(ALL_PATIENTS_DATA_PATH);
+    globalMeanValuesByActivity = computeMeanValuesByActivity(rows, getTrackedMetricKeys());
+    hasLoadedGlobalMeans = true;
 }
 
 /**
@@ -109,6 +218,12 @@ async function setupPatientSelector() {
 async function loadUserData(userId) {
     const basePath = `data/users/${userId}/${userId}`;
     try {
+        try {
+            await ensureGlobalActivityMetricLookup();
+        } catch (lookupError) {
+            console.warn("Global percentile lookup unavailable; using current patient baseline.", lookupError);
+        }
+
         // Load the main trend file
         globalCompositeData = await d3.csv(`${basePath}_composite.csv`, d => ({
             ...d, week: +d.week, composite_score_overall: +d.composite_score_overall
@@ -134,14 +249,17 @@ async function loadUserData(userId) {
 /**
  * 3. CORE VIEW UPDATES
  */
-function updatePatientView() {
+function updatePatientView(options = {}) {
+    const skipSecondRow = Boolean(options.skipSecondRow);
     const weekData = derivedCompositeData.find(d => d.week === selectedWeek) || globalCompositeData.find(d => d.week === selectedWeek);
     if (!weekData) return;
     d3.select("#patient-name-header").text(`Patient ${selectedPatientId}`);
     updateSummaryHeader(weekData);
     renderLineChart(derivedCompositeData.length ? derivedCompositeData : globalCompositeData);
-    renderActivityBars(selectedWeek);
-    renderRadarCharts();
+    if (!skipSecondRow) {
+        renderActivityBars(selectedWeek);
+        renderRadarCharts();
+    }
 }
 
 function updateSummaryHeader(data) {
@@ -238,9 +356,9 @@ function setupCompositeWeightingUI() {
                 legend.appendChild(item);
             });
 
-            // recompute derived composite and update views
+            // recompute derived composite and update only top-row views
             computeDerivedComposite();
-            updatePatientView();
+            updatePatientView({ skipSecondRow: true });
         }
 
         // keyboard/input support (for accessibility)
@@ -404,11 +522,20 @@ function renderLineChart(data, target = "#line-chart", defaultW = 700, h = 300) 
 function renderRadarCharts(mode = 'both', isEnlarged = false) {
     const targetAct = isEnlarged ? "#modal-radar-act" : "#radar-activities";
     const targetMet = isEnlarged ? "#modal-radar-met" : "#radar-metrics";
-    const size = isEnlarged ? 400 : 260;
+    const size = isEnlarged ? 400 : 220;
 
     const activityScores = ACTIVITIES.map(act => {
         const entry = activityDataSets[act].find(d => d.week === selectedWeek);
-        return { axis: act, displayName: ACTIVITY_NAMES[act] || act, value: entry ? entry.composite_score : 0 };
+        const actualValue = entry ? entry.composite_score : 0;
+        // Display raw composite score (0-100 scale)
+        return { axis: act, displayName: ACTIVITY_NAMES[act] || act, value: actualValue, actualValue };
+    });
+    
+    // Compute mean activity scores from all patients
+    const meanActivityScores = ACTIVITIES.map(act => {
+        const meanVal = globalMeanValuesByActivity[act]?.composite_score || 0;
+        // Display raw mean composite score (0-100 scale)
+        return { axis: act, displayName: ACTIVITY_NAMES[act] || act, value: meanVal, actualValue: meanVal, isMean: true };
     });
 
     // helper to compute metric values and draw metric radar for a given activity
@@ -438,7 +565,7 @@ function renderRadarCharts(mode = 'both', isEnlarged = false) {
         }
 
         const actWeekData = activityDataSets[activity]?.find(d => d.week === selectedWeek);
-        const metricValues = (ACTIVITY_METRICS[activity] || []).map(rawMetricKey => {
+        const metricValues = (ACTIVITY_METRICS[activity] || []).filter(k => k !== 'composite_score').map(rawMetricKey => {
             const axisRaw = rawMetricKey.replace(/_pct/g, '').replace(/_/g, ' ').trim();
             const axis = axisRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             const actualValue = (function(){
@@ -456,10 +583,41 @@ function renderRadarCharts(mode = 'both', isEnlarged = false) {
                 axis,
                 value: normalizedValue * 100,
                 normalizedValue,
-                actualValue
+                actualValue,
+                rawMetricKey,
+                unit: METRIC_UNITS[rawMetricKey] || ''
             };
         });
-        drawRadar(targetMet, [{ values: metricValues }], null, size, { showMetricTooltipDetails: true, normalizationLabel: 'Percentile' });
+        
+        // Compute mean metric values for this activity
+        const meanMetricValues = (ACTIVITY_METRICS[activity] || []).filter(k => k !== 'composite_score').map(rawMetricKey => {
+            const axisRaw = rawMetricKey.replace(/_pct/g, '').replace(/_/g, ' ').trim();
+            const axis = axisRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            const actualValue = globalMeanValuesByActivity[activity]?.[rawMetricKey] || 0;
+            const normalizedValue = (function() {
+                if (!actualValue) return 0;
+                const percentile = getActivityMetricPercentile(activity, rawMetricKey, actualValue);
+                const n = Number(percentile);
+                return isFinite(n) ? n : 0;
+            })();
+            return {
+                axis,
+                value: normalizedValue * 100,
+                normalizedValue,
+                actualValue,
+                rawMetricKey,
+                unit: METRIC_UNITS[rawMetricKey] || '',
+                isMean: true
+            };
+        });
+        
+        drawRadar(targetMet, [{ values: metricValues }], null, size, {
+            showMetricTooltipDetails: true,
+            normalizationLabel: 'Percentile',
+            meanData: meanMetricValues,
+            meanColor: '#94a3b8',
+            meanPointColorMode: 'activity'
+        });
     }
 
     // draw activity breakdown radar (if requested)
@@ -474,7 +632,13 @@ function renderRadarCharts(mode = 'both', isEnlarged = false) {
                 drawMetricRadarFor(selectedActivity);
             }
         };
-        drawRadar(targetAct, [{ values: activityScores }], actOnClick, size);
+        drawRadar(targetAct, [{ values: activityScores }], actOnClick, size, {
+            meanData: meanActivityScores,
+            showMetricTooltipDetails: true,
+            meanColor: '#94a3b8',
+            meanPointColor: '#94a3b8',
+            meanPointColorMode: 'fixed'
+        });
     }
 
     // draw metric radar (if requested)
@@ -483,15 +647,65 @@ function renderRadarCharts(mode = 'both', isEnlarged = false) {
     }
 }
 
+function wrapSvgText(selection, maxWidth, lineHeightEm = 1.05, maxLines = 3) {
+    selection.each(function() {
+        const text = d3.select(this);
+        const words = String(text.text() || '').trim().split(/\s+/).filter(Boolean);
+        const x = text.attr('x');
+        const y = text.attr('y');
+        if (!words.length) return;
+
+        text.text(null);
+        let line = [];
+        let lineNumber = 0;
+        let tspan = text.append('tspan').attr('x', x).attr('y', y).attr('dy', '0em');
+
+        for (let index = 0; index < words.length; index += 1) {
+            line.push(words[index]);
+            tspan.text(line.join(' '));
+
+            if (tspan.node().getComputedTextLength() > maxWidth && line.length > 1) {
+                line.pop();
+                tspan.text(line.join(' '));
+                line = [words[index]];
+                lineNumber += 1;
+
+                if (lineNumber >= maxLines) {
+                    const previous = text.select(`tspan:nth-child(${maxLines})`);
+                    if (!previous.empty()) {
+                        const truncated = previous.text().replace(/\s+$/, '');
+                        previous.text(`${truncated}…`);
+                    }
+                    break;
+                }
+
+                tspan = text
+                    .append('tspan')
+                    .attr('x', x)
+                    .attr('y', y)
+                    .attr('dy', `${lineNumber * lineHeightEm}em`)
+                    .text(words[index]);
+            }
+        }
+    });
+}
+
 function drawRadar(containerId, data, onClick, size, options = {}) {
-    const cfg = { w: size, h: size, margin: 60, levels: 5, maxValue: 100 };
+    const isLargeRadar = size >= 400;
+    const labelDistance = isLargeRadar ? 120 : 140;
+    const labelWrapWidth = isLargeRadar ? 156 : 82;
+    // Increase margin to accommodate legend below
+    const bottomMarginExtra = options.meanData ? (isLargeRadar ? 66 : 36) : 0;
+    const cfg = { w: size, h: size, margin: (isLargeRadar ? 122 : 62) + bottomMarginExtra, levels: 5, maxValue: 100 };
     const container = d3.select(containerId);
     container.selectAll("*").remove();
+    container.style("overflow", "visible");
 
     const radius = size/2, angleSlice = Math.PI * 2 / data[0].values.length;
     const rScale = d3.scaleLinear().range([0, radius]).domain([0, cfg.maxValue]);
 
     const svg = container.append("svg").attr("width", size + cfg.margin*2).attr("height", size + cfg.margin*2)
+        .style("overflow", "visible")
         .append("g").attr("transform", `translate(${radius + cfg.margin},${radius + cfg.margin})`);
 
     // Levels
@@ -514,20 +728,48 @@ function drawRadar(containerId, data, onClick, size, options = {}) {
 
     // Axes & Labels
     const axis = svg.selectAll(".axis").data(data[0].values).enter().append("g");
-    axis.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
-        .attr("x", (d, i) => rScale(115) * Math.cos(angleSlice*i - Math.PI/2))
-        .attr("y", (d, i) => rScale(115) * Math.sin(angleSlice*i - Math.PI/2))
-        .text(d => d.displayName || d.axis).style("font-size", "15px").style('font-weight', 600).style("cursor", onClick ? "pointer" : "default")
+    const axisLabels = axis.append("text").attr("text-anchor", "middle")
+        .attr("x", (d, i) => rScale(labelDistance) * Math.cos(angleSlice*i - Math.PI/2))
+        .attr("y", (d, i) => rScale(labelDistance) * Math.sin(angleSlice*i - Math.PI/2))
+        .text(d => d.displayName || d.axis).style("font-size", "15px").style('font-weight', 600).style("cursor", onClick ? "pointer" : "help")
         .on("click", onClick ? (e, d) => onClick({axis: d.axis}) : null);
+    wrapSvgText(axisLabels, labelWrapWidth, 1.05, 3);
 
     // Polygon with enter transition
     const radarLine = d3.lineRadial().radius(d => rScale(d.value)).angle((d, i) => i * angleSlice).curve(d3.curveLinearClosed);
+    const meanColor = options.meanColor || '#94a3b8';
+    const resolveMeanPointColor = (d) => {
+        if (options.meanPointColorMode === 'activity' && ACTIVITY_COLORS[d.axis]) return ACTIVITY_COLORS[d.axis];
+        if (options.meanPointColor) return options.meanPointColor;
+        return meanColor;
+    };
     // choose color: if axes map to activities use their color, otherwise use selectedActivity color
     const polygonColor = (data[0].values.every(v => ACTIVITY_COLORS[v.axis])) ? (ACTIVITY_COLORS[data[0].values[0].axis] || '#3b82f6') : (ACTIVITY_COLORS[selectedActivity] || '#3b82f6');
 
+    // Draw mean polygon layer first so patient layer stays on top
+    if (options.meanData && Array.isArray(options.meanData) && options.meanData.length) {
+        const meanFinalVals = options.meanData.map(v => ({ ...v }));
+        const meanStartVals = meanFinalVals.map(v => ({ ...v, value: 0 }));
+        const meanPoly = svg.append('path').datum(meanStartVals)
+            .attr('d', radarLine)
+            .attr('fill', meanColor)
+            .attr('fill-opacity', 0.14)
+            .attr('stroke', meanColor)
+            .attr('stroke-width', 1.5);
+
+        meanPoly.transition().duration(800).attrTween('d', function(d) {
+            const a = d.map(v => ({ axis: v.axis, value: v.value }));
+            const b = meanFinalVals;
+            return function(t) {
+                const inter = a.map((v, i) => ({ axis: v.axis, value: v.value * (1 - t) + b[i].value * t }));
+                return radarLine(inter);
+            };
+        }).on('end', () => { meanPoly.datum(meanFinalVals); });
+    }
+
     // Start polygon at zero radius and tween to final values for a smooth animation
-    const finalVals = data[0].values.map(v => ({ axis: v.axis, value: v.value }));
-    const startVals = finalVals.map(v => ({ axis: v.axis, value: 0 }));
+    const finalVals = data[0].values.map(v => ({ ...v }));
+    const startVals = finalVals.map(v => ({ ...v, value: 0 }));
     const poly = svg.append("path").datum(startVals)
         .attr("d", radarLine)
         .attr("fill", polygonColor).attr("fill-opacity", 0.25).attr("stroke", polygonColor).attr("stroke-width", 2);
@@ -569,32 +811,156 @@ function drawRadar(containerId, data, onClick, size, options = {}) {
             .attr('cy', (d, i) => rScale(d.value) * Math.sin(angleSlice * i - Math.PI/2))
             .attr('fill', (d) => ACTIVITY_COLORS[d.axis] || polygonColor);
 
-        // attach tooltip handlers on merged selection
-        svg.selectAll('.radar-point')
-            .on('mouseover', (e, d) => {
-                const code = d && d.axis ? d.axis : 'Value';
-                const label = ACTIVITY_NAMES[code] || code;
-                const val = d && isFinite(d.value) ? Math.round(d.value) : 0;
-                const hasMetricDetails = options.showMetricTooltipDetails && d && Object.prototype.hasOwnProperty.call(d, 'normalizedValue');
-                if (hasMetricDetails) {
+        const showRadarTooltip = (e, d, isMean = false) => {
+            const code = d && d.axis ? d.axis : 'Value';
+            const label = ACTIVITY_NAMES[code] || code;
+            const hasMetricDetails = options.showMetricTooltipDetails && d && Object.prototype.hasOwnProperty.call(d, 'normalizedValue');
+            let tooltipHtml = '<strong>' + label + '</strong>';
+            
+            if (hasMetricDetails) {
+                // For metric charts: always show both patient and mean data
+                if (isMean) {
+                    // Hovering mean point: find corresponding patient data
+                    const patientData = finalVals.find(v => v.rawMetricKey === d.rawMetricKey);
+                    if (patientData) {
+                        const patientFormatted = formatMetricValueWithUnit(patientData.actualValue, patientData.unit);
+                        const patientPct = Math.round((patientData.normalizedValue || 0) * 1000) / 10;
+                        const normalizationLabel = options.normalizationLabel || 'Normalized';
+                        tooltipHtml += '<br/>Value: ' + patientFormatted;
+                        tooltipHtml += '<br/>' + normalizationLabel + ': ' + patientPct + '%';
+                    }
+                    // Show mean data
+                    const meanFormatted = formatMetricValueWithUnit(d.actualValue, d.unit);
+                    tooltipHtml += '<br/>Mean: ' + meanFormatted;
+                } else {
+                    // Hovering patient point or axis: show patient data first
+                    const actualFormatted = formatMetricValueWithUnit(d.actualValue, d.unit);
                     const normalizedPct = Math.round((d.normalizedValue || 0) * 1000) / 10;
-                    const actualFormatted = Number.isFinite(d.actualValue) ? d.actualValue.toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') : '0';
                     const normalizationLabel = options.normalizationLabel || 'Normalized';
-                    tooltip.style('opacity', 1).html('<strong>' + label + '</strong><br/>Actual: ' + actualFormatted + '<br/>' + normalizationLabel + ': ' + normalizedPct + '%')
-                        .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
-                    return;
+                    tooltipHtml += '<br/>Value: ' + actualFormatted;
+                    tooltipHtml += '<br/>' + normalizationLabel + ': ' + normalizedPct + '%';
+                    
+                    // Show mean value if available
+                    if (options.meanData && d.rawMetricKey) {
+                        const meanData = options.meanData.find(m => m.rawMetricKey === d.rawMetricKey);
+                        if (meanData && meanData.actualValue !== undefined && Number.isFinite(meanData.actualValue)) {
+                            const meanFormatted = formatMetricValueWithUnit(meanData.actualValue, d.unit);
+                            tooltipHtml += '<br/>Mean: ' + meanFormatted;
+                        }
+                    }
                 }
-                tooltip.style('opacity', 1).html('<strong>' + label + '</strong><br/>' + val + '%')
-                    .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
-            })
-            .on('mousemove', (e) => { tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px'); })
-            .on('mouseout', () => { tooltip.style('opacity', 0); });
+            } else {
+                // For activity charts: always show both patient and mean data
+                if (isMean) {
+                    // Hovering mean point: find corresponding patient data
+                    const patientData = finalVals.find(v => v.axis === d.axis);
+                    if (patientData && patientData.value !== undefined && Number.isFinite(patientData.value)) {
+                        const patientVal = Math.round(patientData.value);
+                        tooltipHtml += '<br/>Patient: ' + patientVal;
+                    }
+                    // Show mean data
+                    const meanVal = Math.round(d.value);
+                    tooltipHtml += '<br/>Mean: ' + meanVal;
+                } else {
+                    // Hovering patient point or axis: show patient data first
+                    const val = d && isFinite(d.value) ? Math.round(d.value) : 0;
+                    tooltipHtml += '<br/>Patient: ' + val;
+                    
+                    // Show mean value if available
+                    if (options.meanData && d.axis) {
+                        const meanData = options.meanData.find(m => m.axis === d.axis);
+                        if (meanData && meanData.value !== undefined && Number.isFinite(meanData.value)) {
+                            const meanVal = Math.round(meanData.value);
+                            tooltipHtml += '<br/>Mean: ' + meanVal;
+                        }
+                    }
+                }
+            }
+            
+            tooltip.style('opacity', 1).html(tooltipHtml)
+                .style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        };
+
+        const moveRadarTooltip = (e) => {
+            tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        };
+
+        const hideRadarTooltip = () => {
+            tooltip.style('opacity', 0);
+        };
+
+        // Mean data layer (if provided)
+        if (options.meanData && Array.isArray(options.meanData)) {
+            const meanPts = svg.selectAll('.radar-mean-point').data(options.meanData);
+            const enterMeanPts = meanPts.enter().append('circle')
+                .attr('class', 'radar-mean-point')
+                .attr('r', 0)
+                .attr('cx', 0)
+                .attr('cy', 0)
+                .attr('fill', (d) => resolveMeanPointColor(d))
+                .style('cursor', 'default')
+                .style('opacity', 0.5);
+            
+            enterMeanPts.transition().duration(800).attr('r', 4)
+                .attr('cx', (d, i) => rScale(d.value) * Math.cos(angleSlice * i - Math.PI/2))
+                .attr('cy', (d, i) => rScale(d.value) * Math.sin(angleSlice * i - Math.PI/2));
+            
+            meanPts.transition().duration(800)
+                .attr('r', 4)
+                .attr('cx', (d, i) => rScale(d.value) * Math.cos(angleSlice * i - Math.PI/2))
+                .attr('cy', (d, i) => rScale(d.value) * Math.sin(angleSlice * i - Math.PI/2))
+                .attr('fill', (d) => resolveMeanPointColor(d));
+        }
+
+        // attach tooltip handlers on points
+        svg.selectAll('.radar-point')
+            .on('mouseover', (e, d) => showRadarTooltip(e, d, false))
+            .on('mousemove', moveRadarTooltip)
+            .on('mouseout', hideRadarTooltip);
+        
+        // attach tooltip handlers on mean points
+        svg.selectAll('.radar-mean-point')
+            .on('mouseover', (e, d) => showRadarTooltip(e, d, true))
+            .on('mousemove', moveRadarTooltip)
+            .on('mouseout', hideRadarTooltip);
+
+        // attach tooltip handlers on axis labels as well
+        axisLabels
+            .on('mouseover', (e, d) => showRadarTooltip(e, d, false))
+            .on('mousemove', moveRadarTooltip)
+            .on('mouseout', hideRadarTooltip)
+            .on('click', onClick ? (e, d) => onClick({ axis: d.axis }) : null);
 
         // allow clicking points to trigger the same onClick as axis labels (switch activity)
         if (onClick) {
             svg.selectAll('.radar-point').on('click', (e, d) => { try { onClick({ axis: d.axis }); } catch (err) { /* ignore */ } });
         }
     } catch (e) { console.warn('Radar points / tooltip setup failed', e); }
+    
+    // Add legend if mean data is present
+    if (options.meanData && Array.isArray(options.meanData) && options.meanData.length > 0) {
+        const legendTop = radius + cfg.margin - (isLargeRadar ? 20 : 14);
+        const legendG = svg.append('g').attr('class', 'radar-legend');
+        const legendFontSize = isLargeRadar ? 15 : 13;
+        const legendDotR = isLargeRadar ? 6 : 5;
+
+        const leftBaseX = -radius + (isLargeRadar ? 24 : 12);
+        const centerGap = isLargeRadar ? 86 : 56;
+        const patientX = isLargeRadar ? -centerGap : leftBaseX;
+        const meanX = isLargeRadar ? centerGap : leftBaseX + 120;
+
+        // Patient legend item
+        legendG.append('circle').attr('cx', patientX).attr('cy', legendTop).attr('r', legendDotR)
+            .attr('fill', polygonColor).style('opacity', 0.82);
+        legendG.append('text').attr('x', patientX + 12).attr('y', legendTop).attr('dy', '0.34em')
+            .style('font-size', `${legendFontSize}px`).style('font-weight', 600).style('fill', '#334155').text('Patient');
+
+        // Mean legend item
+        legendG.append('circle').attr('cx', meanX).attr('cy', legendTop).attr('r', legendDotR)
+            .attr('fill', meanColor).style('opacity', 0.82);
+        legendG.append('text').attr('x', meanX + 12).attr('y', legendTop).attr('dy', '0.34em')
+            .style('font-size', `${legendFontSize}px`).style('font-weight', 600).style('fill', '#334155').text('Mean');
+    }
 }
 
 /**
@@ -612,17 +978,28 @@ window.addEventListener('openModal', (e) => {
         const lineData = (derivedCompositeData && derivedCompositeData.length) ? derivedCompositeData : globalCompositeData;
         document.getElementById('modal-title').textContent = 'Weekly Progress';
         renderLineChart(lineData, '#modal-chart-container', 1000, 500);
-    } else if (type === 'radar-act' || type === 'radar') {
-        // enlarge activities overview only
-        document.getElementById('modal-title').textContent = 'Activities Overview';
-        container.innerHTML = '<div id="modal-radar-act"></div>';
+    } else if (type === 'radar-combined') {
+        // enlarge both radars side-by-side
+        document.getElementById('modal-title').textContent = 'Activity Analysis';
+        container.innerHTML = `
+            <div style="width:100%;height:100%;display:flex;gap:40px;align-items:center;justify-content:center;overflow:visible;">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+                    <h3 style="margin:0 0 16px 0;color:#475569;">Activities Overview</h3>
+                    <div id="modal-radar-act" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible;"></div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+                    <h3 id="modal-radar-metrics-title" style="margin:0 0 16px 0;color:#475569;">Activity Performance</h3>
+                    <div id="modal-radar-met" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible;"></div>
+                </div>
+            </div>
+        `;
         renderRadarCharts('act', true);
-    } else if (type === 'radar-met') {
-        // enlarge metrics radar only
-        const title = selectedActivity ? `${ACTIVITY_NAMES[selectedActivity] || selectedActivity} Performance` : 'Activity Performance';
-        document.getElementById('modal-title').textContent = title;
-        container.innerHTML = '<div id="modal-radar-met"></div>';
         renderRadarCharts('met', true);
+        // Update the modal metrics title with selected activity name
+        const modalMetricsTitle = document.getElementById('modal-radar-metrics-title');
+        if (modalMetricsTitle && selectedActivity) {
+            modalMetricsTitle.textContent = `${ACTIVITY_NAMES[selectedActivity] || selectedActivity} Performance`;
+        }
     } else if (type === 'weekly') {
         document.getElementById('modal-title').textContent = 'Weekly Activity Performance';
         container.innerHTML = '<div id="modal-activity-bars" style="width:100%;"></div>';
@@ -630,7 +1007,7 @@ window.addEventListener('openModal', (e) => {
     } else {
         // fallback: render both radars
         document.getElementById('modal-title').textContent = 'Activity Radars';
-        container.innerHTML = '<div id="modal-radar-act"></div><div id="modal-radar-met"></div>';
+        container.innerHTML = '<div id="modal-radar-act" style="flex:1;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible;"></div><div id="modal-radar-met" style="flex:1;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible;"></div>';
         renderRadarCharts('both', true);
     }
 });
