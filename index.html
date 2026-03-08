@@ -15,10 +15,10 @@
   <section id="project-overview" style="margin-bottom: 3rem;">
     <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">1. Project Overview</h2>
     <p style="margin-bottom: 1rem; line-height: 1.6;">
-      <strong>VisGait</strong> is an interactive React and D3.js-based data visualization dashboard developed for the DH2321 course at KTH. 
+      <strong>VisGait</strong> is an interactive data visualization dashboard developed for the DH2321 course at KTH.
     </p>
     <p style="line-height: 1.6;">
-      By translating complex raw sensor data from knee braces into high-level, readable visual indicators, VisGait bridges the gap between raw biomedical data and actionable health insights. The dashboard is split into two distinct views: one empowering <strong>patients</strong> to intuitively track their recovery and customize their activity goals, and another enabling <strong>researchers</strong> to analyze cohorts, find statistical correlations, and explore distributions of gait anomalies.
+      By translating complex raw sensor data from knee braces into high-level, readable visual indicators, VisGait bridges the gap between raw biomedical data and actionable health insights. By the 5-week deadline, the project aims to deliver a web application built with plain HTML5, CSS, and vanilla JavaScript so both <strong>patients</strong> and <strong>researchers</strong> can compare gait metrics through interactive visualizations.
     </p>
   </section>
 
@@ -30,17 +30,13 @@
       <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">User I: Patients</h3>
       <p style="margin-bottom: 1rem; line-height: 1.6;">The Patient Dashboard prioritizes clarity, motivation, and personalization.</p>
       <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
-        <li><strong>Task 1 (Monitoring General Recovery):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Search (Explore) | <span style="color:#64748b;">Target:</span> Trends.
-          <br><strong>Idiom:</strong> <em>Weekly Progress Line Chart & Health Bar.</em> Patients evaluate a single aggregate "Composite Score" over 12 weeks to see if they are improving and staying in the "Healthy Zone".
+        <li><strong>Task 1 (Checking General Improvement):</strong>
+          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Search (Explore) / Query (Identify) | <span style="color:#64748b;">Target:</span> Trends.
+          <br><strong>Idiom:</strong> <em>Line Chart of Weighted Composite Score.</em> Patients test whether they are improving over time by tracking overall performance trends and adjusting activity weights.
         </li>
-        <li><strong>Task 2 (Identifying Suitable Activities):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Search (Locate) / Query (Compare) | <span style="color:#64748b;">Target:</span> Extremes / Features.
-          <br><strong>Idiom:</strong> <em>Activities Overview (Radar Chart) & Weekly Bar Charts.</em> Allows patients to quickly compare their performance across 4 specific activities (Stair Climbing, Sit-To-Stand, Timed Up-and-Go, Walking).
-        </li>
-        <li><strong>Task 3 (Personalizing Goals):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Produce (Derive).
-          <br><strong>Idiom:</strong> <em>Custom Composite Weighting Slider.</em> An interactive multi-handle slider allowing patients to redefine their overall score based on the daily activities that matter most to them.
+        <li><strong>Task 2 (Finding the Most Suitable Activity):</strong>
+          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Search (Explore) / Query (Compare) | <span style="color:#64748b;">Target:</span> Extremes.
+          <br><strong>Idiom:</strong> <em>Radar Charts on Activity Performance.</em> Patients compare activity-specific metrics and identify which activity gives their best outcome.
         </li>
       </ul>
     </div>
@@ -49,18 +45,24 @@
       <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">User II: Researchers</h3>
       <p style="margin-bottom: 1rem; line-height: 1.6;">The Researcher Dashboard allows for deep cohort analysis and multidimensional correlation.</p>
       <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
-        <li><strong>Task 1 (Comparing Cohorts & Multi-attribute Analysis):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Query (Compare) | <span style="color:#64748b;">Target:</span> Distribution / Correlation.
-          <br><strong>Idiom:</strong> <em>Parallel Coordinates Plot.</em> Researchers filter and trace patients grouped by recovery status (Improving, Declining, Stable) across multiple variables (GSI, Symmetry Ratio, Cadence, Step Time, etc.).
+        <li><strong>Task 1 (Visualizing Statistical Significance of Gait Metrics):</strong>
+          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Search (Explore) / Query (Summarize) | <span style="color:#64748b;">Target:</span> Distribution.
+          <br><strong>Idioms:</strong> <em>Scatter Plot Matrix & Violin Plot for Selected Metrics.</em> Researchers summarize variation and inspect relationships across selected gait metrics.
         </li>
-        <li><strong>Task 2 (Finding Metric Correlations):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Search (Explore) | <span style="color:#64748b;">Target:</span> Correlation.
-          <br><strong>Idiom:</strong> <em>Scatter Plot Matrix.</em> Generates Pearson's <em>r</em> correlation grids to uncover hidden biomechanical relationships between metrics.
+        <li><strong>Task 2 (Comparing Specific Attributes):</strong>
+          <br><span style="color:#64748b;">Action:</span> Query (Compare) | <span style="color:#64748b;">Target:</span> Trends.
+          <br><strong>Idiom:</strong> <em>Streamgraph for Metrics Across Activities.</em> Researchers compare how selected metrics evolve across individuals or activities.
         </li>
-        <li><strong>Task 3 (Evaluating Distribution & Variance):</strong> 
-          <br><span style="color:#64748b;">Action:</span> Query (Summarize) | <span style="color:#64748b;">Target:</span> Distribution / Trends.
-          <br><strong>Idioms:</strong> <em>Violin Plot & Line Plot with Standard Deviation.</em> Replaces traditional box plots to better visualize the underlying probability density of metrics across cohorts over time.
-        </li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom: 2rem;">
+      <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">Key Interactions</h3>
+      <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
+        <li><strong>Patient Interaction:</strong> Users adjust activity weighting in the composite-score line chart and click activity categories in the radar overview to inspect activity-specific performance.</li>
+        <li><strong>Researcher Interaction:</strong> Users change metrics and activity subsets to compare statistical patterns in Scatter Plot Matrix, Violin Plot, and Streamgraph views.</li>
+        <li><strong>Cross-view Filtering:</strong> Parallel coordinates provide shared selection/filtering through click-and-drag ranges to focus all researcher visual idioms.</li>
+        <li><strong>General Usability:</strong> An enlargement button on each chart enables full-screen inspection while preserving chart interactions.</li>
       </ul>
     </div>
 
