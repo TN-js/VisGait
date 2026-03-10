@@ -7,7 +7,7 @@ let cachedDashboardRows = []; // used to populate with all rows in 'dashboard_da
 let filteredData = []; // the filtered data from brushing in the parallel coordinates plot
 // Violin filter state
 let violinGroup = "All";
-let violinMetricKey = "GSI_pct_norm";
+let violinMetricKey = "GSI_pct";
 // Default scatter matrix metric selection shown on first render
 let selectedScatterMetricKeys = ["composite_score", "GSI_pct", "step_time_cv_pct", "symmetry_ratio"];
 // Stores active brush ranges per axis
@@ -72,7 +72,6 @@ const GROUP_COLORS = {
     stable: "#3498db"
 };
 
-// Scatter matrix: all available metrics
 const SCATTER_METRICS = [
     { key: "composite_score", name: "Composite Score" },
     { key: "GSI_pct", name: "GSI (%)" },
@@ -90,12 +89,16 @@ const PARALLEL_METRICS = SCATTER_METRICS.slice();
 const PARALLEL_ACTIVITY_ORDER = ["SC", "STS", "TUG", "W"];
 
 const VIOLIN_METRICS = [
-    { key: "GSI_pct_norm", name: "GSI" },
-    { key: "symmetry_ratio_norm", name: "Symmetry" },
-    { key: "gait_index_left_pct_norm", name: "GI Left" },
-    { key: "gait_index_right_pct_norm", name: "GI Right" },
-    { key: "step_time_cv_pct_norm", name: "Step CV" },
-    { key: "cycle_time_cv_pct_norm", name: "Cycle CV" }
+    { key: "composite_score", name: "Composite Score" },
+    { key: "GSI_pct", name: "GSI (%)" },
+    { key: "symmetry_ratio", name: "Symmetry Ratio" },
+    { key: "step_time_cv_pct", name: "Step Time CV (%)" },
+    { key: "cycle_time_cv_pct", name: "Cycle Time CV (%)" },
+    { key: "cadence_total_steps_min", name: "Cadence (steps/min)" },
+    { key: "gait_index_left_pct", name: "GI Left (%)" },
+    { key: "gait_index_right_pct", name: "GI Right (%)" },
+    { key: "step_time_mean_sec", name: "Step Time (s)" },
+    { key: "total_steps", name: "Total Steps" }
 ];
 
 function getMetricTooltip(metricKey, fallbackLabel = "") {
@@ -1033,7 +1036,7 @@ async function renderViolinPlot(rows) {
         .property("selected", (d) => d === violinGroup)
         .text((d) => (d === "All" ? "All" : d.charAt(0).toUpperCase() + d.slice(1)));
 
-    const percentileLookupByActivity = buildPercentileLookupByActivity(rows, VIOLIN_METRICS.map((m) => m.key));
+    // const percentileLookupByActivity = buildPercentileLookupByActivity(rows, VIOLIN_METRICS.map((m) => m.key));
 
     let filteredRows = rows;
     if (violinGroup !== "All") {

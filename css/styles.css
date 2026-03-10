@@ -799,7 +799,7 @@ body {
     /* border-right draws the dividing line between the panel and the chart */
     width: 156px;
     min-width: 156px;
-    padding: 46px 8px 8px;
+    padding: 10px 8px 8px;
     overflow-y: auto;
     border-right: 1px solid #e2e8f0;
     display: flex;
