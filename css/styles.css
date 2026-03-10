@@ -735,12 +735,18 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
+    cursor: pointer;
 }
 
 .pcp-legend-swatch {
     width: 14px;
     height: 4px;
     border-radius: 2px;
+}
+
+.pcp-legend-item input {
+    margin: 0 2px 0 0;
+    cursor: pointer;
 }
 
 .parallel-coord-plot .pcp-controls-bar {

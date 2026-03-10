@@ -5,8 +5,6 @@
 const RESEARCHER_DATA_PATH = "data/dashboard_data.csv"; // csv source file
 let cachedDashboardRows = []; // used to populate with all rows in 'dashboard_data.csv'
 let filteredData = []; // the filtered data from brushing in the parallel coordinates plot
-// Violin filter state
-let violinGroup = "All";
 let violinMetricKey = "GSI_pct";
 // Default scatter matrix metric selection shown on first render
 let selectedScatterMetricKeys = ["composite_score", "GSI_pct", "step_time_cv_pct", "symmetry_ratio"];
@@ -71,6 +69,8 @@ const GROUP_COLORS = {
     declining: "#e74c3c",
     stable: "#3498db"
 };
+const PARALLEL_GROUPS = Object.keys(GROUP_COLORS);
+let parallelGroupSelection = new Set(PARALLEL_GROUPS);
 
 const SCATTER_METRICS = [
     { key: "composite_score", name: "Composite Score" },
@@ -209,6 +209,12 @@ function rowPassesParallelFilters(row, dimensions) {
     return true;
 }
 
+function rowPassesParallelGroupFilter(row) {
+    if (!parallelGroupSelection || parallelGroupSelection.size === 0) return true;
+    const group = String(row.__rawRows?.[0]?.user_group || row.__raw?.user_group || "").toLowerCase();
+    return parallelGroupSelection.has(group);
+}
+
 function hasMeaningfulParallelValue(value) {
     // PCP hides axes that are only 0/empty across data to avoid collapsed "spike" axes.
     return Number.isFinite(value) && value !== 0;
@@ -300,10 +306,12 @@ function updateParallelFilterControls(activeFilterCount, filteredLineCount, tota
 // 4. Update the status text
 // 5. Re-render the other 3 charts with the filtered data in parallel
 async function syncFilteredDatasetFromParallel(parallelRows, dimensions) {
-    const activeFilterCount = Object.values(parallelAxisFilters).filter((range) => Array.isArray(range) && range.length === 2).length;
+    const axisFilterCount = Object.values(parallelAxisFilters).filter((range) => Array.isArray(range) && range.length === 2).length;
+    const hasGroupFilter = parallelGroupSelection.size > 0 && parallelGroupSelection.size < PARALLEL_GROUPS.length;
+    const activeFilterCount = axisFilterCount + (hasGroupFilter ? 1 : 0);
     const sourceRows = Array.isArray(parallelRows) ? parallelRows : [];
     const filteredParallelRows = activeFilterCount
-        ? sourceRows.filter((row) => rowPassesParallelFilters(row, dimensions))
+        ? sourceRows.filter((row) => rowPassesParallelFilters(row, dimensions) && rowPassesParallelGroupFilter(row))
         : sourceRows.slice();
     const totalLineCount = sourceRows.length;
     const filteredLineCount = filteredParallelRows.length;
@@ -375,7 +383,25 @@ async function renderParallelCoordinatesPlot(rows) {
     legendBar.append("label").text("Groups:");
     const legend = legendBar.append("div").attr("class", "pcp-legend");
     Object.entries(GROUP_COLORS).forEach(([group, color]) => {
-        const item = legend.append("span").attr("class", "pcp-legend-item");
+        const item = legend.append("label").attr("class", "pcp-legend-item");
+        item
+            .append("input")
+            .attr("type", "checkbox")
+            .attr("value", group)
+            .property("checked", parallelGroupSelection.has(group))
+            .on("change", async function() {
+                if (this.checked) {
+                    parallelGroupSelection.add(group);
+                } else {
+                    if (parallelGroupSelection.size <= 1) {
+                        this.checked = true;
+                        return;
+                    }
+                    parallelGroupSelection.delete(group);
+                }
+                applyLineStyles();
+                await syncFilteredDatasetFromParallel(data, dimensions);
+            });
         item.append("span").attr("class", "pcp-legend-swatch").style("background", color);
         item.append("span").text(group.charAt(0).toUpperCase() + group.slice(1));
     });
@@ -390,7 +416,9 @@ async function renderParallelCoordinatesPlot(rows) {
         .attr("type", "button")
         .text("Reset filters")
         .on("click", async () => {
-            if (Object.keys(parallelAxisFilters).length === 0) return;
+            const hasAxisFilters = Object.keys(parallelAxisFilters).length > 0;
+            const hasGroupFilters = parallelGroupSelection.size < PARALLEL_GROUPS.length;
+            if (!hasAxisFilters && !hasGroupFilters) return;
 
             isRestoringBrush = true;
             parallelBrushHistory = [];
@@ -401,6 +429,11 @@ async function renderParallelCoordinatesPlot(rows) {
                 }
             });
             isRestoringBrush = false;
+
+            if (hasGroupFilters) {
+                parallelGroupSelection = new Set(PARALLEL_GROUPS);
+                legend.selectAll("input").property("checked", true);
+            }
 
             applyLineStyles();
             await syncFilteredDatasetFromParallel(data, dimensions);
@@ -535,12 +568,12 @@ async function renderParallelCoordinatesPlot(rows) {
     applyLineStyles = () => {
         lineSelection
             .attr("stroke", (row) => {
-                if (!rowPassesParallelFilters(row, dimensions)) return "#d1d5db";
+                if (!rowPassesParallelFilters(row, dimensions) || !rowPassesParallelGroupFilter(row)) return "#d1d5db";
                 const group = String(row.__rawRows?.[0]?.user_group || "").toLowerCase();
                 return GROUP_COLORS[group] || "#2563eb";
             })
-            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) ? 1.3 : 1))
-            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) ? 0.55 : 0.08));
+            .attr("stroke-width", (row) => (rowPassesParallelFilters(row, dimensions) && rowPassesParallelGroupFilter(row) ? 1.3 : 1))
+            .attr("opacity", (row) => (rowPassesParallelFilters(row, dimensions) && rowPassesParallelGroupFilter(row) ? 0.55 : 0.08));
     };
 
     const axis = chart
@@ -1020,32 +1053,11 @@ async function renderViolinPlot(rows) {
             .text(metric.name);
     });
 
-    controls.append("label").text("Group:");
-    controls
-        .append("select")
-        .attr("id", "violin-group-select")
-        .on("change", function() {
-            violinGroup = this.value;
-            renderViolinPlot(filteredData.length ? filteredData : cachedDashboardRows);
-        })
-        .selectAll("option")
-        .data(["All", "improving", "declining", "stable"])
-        .enter()
-        .append("option")
-        .attr("value", (d) => d)
-        .property("selected", (d) => d === violinGroup)
-        .text((d) => (d === "All" ? "All" : d.charAt(0).toUpperCase() + d.slice(1)));
-
     // const percentileLookupByActivity = buildPercentileLookupByActivity(rows, VIOLIN_METRICS.map((m) => m.key));
-
-    let filteredRows = rows;
-    if (violinGroup !== "All") {
-        filteredRows = filteredRows.filter((row) => String(row.user_group || "").toLowerCase() === violinGroup);
-    }
 
     const selectedMetric = VIOLIN_METRICS.find((metric) => metric.key === violinMetricKey) || VIOLIN_METRICS[0];
     violinMetricKey = selectedMetric.key;
-    const values = filteredRows
+    const values = rows
         .map((row) => Number(row[selectedMetric.key]))
         .filter((value) => Number.isFinite(value));
 
@@ -1060,14 +1072,8 @@ async function renderViolinPlot(rows) {
     }
 
     const tooltip = ensureTooltip();
-    const fillColor = violinGroup !== "All" ? (GROUP_COLORS[violinGroup] || "#83b2ff") : "#83b2ff";
-    const strokeColor = violinGroup === "improving"
-        ? "#1a6b3f"
-        : violinGroup === "declining"
-            ? "#8b1a1a"
-            : violinGroup === "stable"
-                ? "#1a4a8a"
-                : "#1a3a8a";
+    const fillColor = "#83b2ff";
+    const strokeColor = "#1a3a8a";
 
     const svg = chartWrap
         .append("svg")
@@ -1140,11 +1146,10 @@ async function renderViolinPlot(rows) {
         .attr("height", plotHeight)
         .attr("fill", "transparent")
         .on("mouseover", () => {
-            const grpLabel = violinGroup === "All" ? "All groups" : violinGroup;
             tooltip
                 .style("display", "block")
                 .html(
-                    `<strong>${selectedMetric.name}</strong> - ${grpLabel}<br>` +
+                    `<strong>${selectedMetric.name}</strong><br>` +
                     `Median: ${median.toFixed(3)}<br>` +
                     `Q1: ${q1.toFixed(3)} | Q3: ${q3.toFixed(3)}<br>` +
                     `Min: ${d3.min(values).toFixed(3)} | Max: ${d3.max(values).toFixed(3)}<br>` +
