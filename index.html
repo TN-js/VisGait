@@ -9,18 +9,163 @@
 <body>
     <div id="header-placeholder"></div>
 
-    <main class="patient-content">
-        <section class="viz-box">
-            <h1 class="patient-name-large">About VisGait</h1>
-            <p style="color: #64748b; font-size: 18px; line-height: 1.6;">
-                Welcome to VisGait, a professional gait analysis dashboard designed to bridge the gap 
-                between complex biomechanical data and actionable clinical insights.
-            </p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;">
-            <h3>Our Mission</h3>
-            <p>To provide researchers and patients with a clear, visual understanding of recovery progress through advanced data visualization.</p>
-        </section>
-    </main>
+<main class="visgait-about-body" style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; color: #334155; font-family: sans-serif;">
+  
+  <!-- 1. Project Overview -->
+  <section id="project-overview" style="margin-bottom: 3rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">1. Project Overview</h2>
+    <p style="margin-bottom: 1rem; line-height: 1.6;">
+      <strong>VisGait</strong> is an interactive React and D3.js-based data visualization dashboard developed for the DH2321 course at KTH. 
+    </p>
+    <p style="line-height: 1.6;">
+      By translating complex raw sensor data from knee braces into high-level, readable visual indicators, VisGait bridges the gap between raw biomedical data and actionable health insights. The dashboard is split into two distinct views: one empowering <strong>patients</strong> to intuitively track their recovery and customize their activity goals, and another enabling <strong>researchers</strong> to analyze cohorts, find statistical correlations, and explore distributions of gait anomalies.
+    </p>
+  </section>
+
+  <!-- 2. How To Use -->
+  <section id="how-to-use" style="margin-bottom: 3rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">2. How To Use (Munzner's Framework)</h2>
+    
+    <div style="margin-bottom: 2rem;">
+      <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">User I: Patients</h3>
+      <p style="margin-bottom: 1rem; line-height: 1.6;">The Patient Dashboard prioritizes clarity, motivation, and personalization.</p>
+      <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
+        <li><strong>Task 1 (Monitoring General Recovery):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Search (Explore) | <span style="color:#64748b;">Target:</span> Trends.
+          <br><strong>Idiom:</strong> <em>Weekly Progress Line Chart & Health Bar.</em> Patients evaluate a single aggregate "Composite Score" over 12 weeks to see if they are improving and staying in the "Healthy Zone".
+        </li>
+        <li><strong>Task 2 (Identifying Suitable Activities):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Search (Locate) / Query (Compare) | <span style="color:#64748b;">Target:</span> Extremes / Features.
+          <br><strong>Idiom:</strong> <em>Activities Overview (Radar Chart) & Weekly Bar Charts.</em> Allows patients to quickly compare their performance across 4 specific activities (Stair Climbing, Sit-To-Stand, Timed Up-and-Go, Walking).
+        </li>
+        <li><strong>Task 3 (Personalizing Goals):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Produce (Derive).
+          <br><strong>Idiom:</strong> <em>Custom Composite Weighting Slider.</em> An interactive multi-handle slider allowing patients to redefine their overall score based on the daily activities that matter most to them.
+        </li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom: 2rem;">
+      <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">User II: Researchers</h3>
+      <p style="margin-bottom: 1rem; line-height: 1.6;">The Researcher Dashboard allows for deep cohort analysis and multidimensional correlation.</p>
+      <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
+        <li><strong>Task 1 (Comparing Cohorts & Multi-attribute Analysis):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Analyze (Discover) / Query (Compare) | <span style="color:#64748b;">Target:</span> Distribution / Correlation.
+          <br><strong>Idiom:</strong> <em>Parallel Coordinates Plot.</em> Researchers filter and trace patients grouped by recovery status (Improving, Declining, Stable) across multiple variables (GSI, Symmetry Ratio, Cadence, Step Time, etc.).
+        </li>
+        <li><strong>Task 2 (Finding Metric Correlations):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Search (Explore) | <span style="color:#64748b;">Target:</span> Correlation.
+          <br><strong>Idiom:</strong> <em>Scatter Plot Matrix.</em> Generates Pearson's <em>r</em> correlation grids to uncover hidden biomechanical relationships between metrics.
+        </li>
+        <li><strong>Task 3 (Evaluating Distribution & Variance):</strong> 
+          <br><span style="color:#64748b;">Action:</span> Query (Summarize) | <span style="color:#64748b;">Target:</span> Distribution / Trends.
+          <br><strong>Idioms:</strong> <em>Violin Plot & Line Plot with Standard Deviation.</em> Replaces traditional box plots to better visualize the underlying probability density of metrics across cohorts over time.
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="font-size: 1.4rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">Limitations</h3>
+      <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6;">
+        <li><strong>Synthetic Demonstration Data:</strong> The gait performance data currently visualized in the web prototype is partly synthetic and generated strictly for UI/UX demonstration purposes.</li>
+        <li><strong>:</strong> Peaks from the raw signals of the knee braces still need to be labelled either manually or by algorithms, and further processed to give the metrics for visualization.</li>
+        <li><strong>Web Responsiveness:</strong> Dense multivariate charts (like the Scatter Plot Matrix and Parallel Coordinates) scale poorly on smaller mobile devices.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3. Team and Role -->
+  <section id="team-roles" style="margin-bottom: 3rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">3. Team and Work Distribution</h2>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; line-height: 1.5;">
+        <thead>
+          <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+            <th style="padding: 12px;">Team Member</th>
+            <th style="padding: 12px;">Primary Role(s) & Work Distribution</th>
+            <th style="padding: 12px;">Learning Goal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 12px;"><strong>Bryan (Zhijun LIAN)</strong><br><a href="mailto:zhijunli@kth.se" style="color: #2563eb; text-decoration: none;">zhijunli@kth.se</a></td>
+            <td style="padding: 12px;"><span style="color:#0f172a; font-weight:600;">Lead Data Processing</span>, Front/Backend Setup, Vis Idiom</td>
+            <td style="padding: 12px;">Translate raw sensor data into high-level metrics; automate flagging of data artifacts from sensor drift.</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 12px;"><strong>Thomas NORÉN</strong><br><a href="mailto:tnore@kth.se" style="color: #2563eb; text-decoration: none;">tnore@kth.se</a></td>
+            <td style="padding: 12px;"><span style="color:#0f172a; font-weight:600;">Lead Front & Backend Setup</span>, Data Processing, Vis Idiom</td>
+            <td style="padding: 12px;">Filter and transform complex data; design web apps with interactive visualizations.</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 12px;"><strong>Howard (Kwun Hoi HUANG)</strong><br><a href="mailto:khhuang@kth.se" style="color: #2563eb; text-decoration: none;">khhuang@kth.se</a></td>
+            <td style="padding: 12px;"><span style="color:#0f172a; font-weight:600;">Lead Vis Idiom</span>, Front/Backend Setup, Testing & Eval</td>
+            <td style="padding: 12px;">Master visualization of cyclic, time-series data; apply biomechanically sound data-filling techniques.</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 12px;"><strong>Cyrus (Hei Laam LAM)</strong><br><a href="mailto:hllam@kth.se" style="color: #2563eb; text-decoration: none;">hllam@kth.se</a></td>
+            <td style="padding: 12px;"><span style="color:#0f172a; font-weight:600;">Lead Testing & Evaluation</span>, Data Processing, Vis Idiom</td>
+            <td style="padding: 12px;">Pinpoint mechanical inefficiencies through complex derived data; implement valid scientific normalization.</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 12px;"><strong>Erik OLSSON</strong><br><a href="mailto:eolsson6@kth.se" style="color: #2563eb; text-decoration: none;">eolsson6@kth.se</a></td>
+            <td style="padding: 12px;"><span style="color:#0f172a; font-weight:600;">Lead Front & Backend Setup</span>, Vis Idiom, Testing & Eval</td>
+            <td style="padding: 12px;">Visualize dense information clearly without overwhelming the user; gain practical web building experience.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 4. Data -->
+  <section id="data" style="margin-bottom: 3rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">4. Data Provenance & Abstraction</h2>
+    <!-- <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.5rem;">
+      <li><strong>Origin:</strong> Based on the framework of "Perennial Elderly User Activity Data & Labelled Peaks" (Neatsens).</li>
+      <li><strong>General Description:</strong> Resistance signals from knee braces collected from elderly patients engaging in 4 physical activities (Stair Climbing, Sit-to-Stand, Timed Up-and-Go, Walking).</li>
+      <li><strong>Original Variables:</strong> <code>User_ID</code>, <code>Session_ID</code>, <code>Activity</code> (Categorical); <code>Time_Sec</code>, <code>Raw_Reading</code> (Quantitative).</li>
+      <li><strong>Transformation:</strong> Python scripts (Pandas/NumPy) are used to scale, clean, and normalize the raw amplitude. The <code>Peak_Index</code> is extracted to identify cyclic gait patterns.</li>
+      <li><strong>Derived Clinical Metrics (Prototype):</strong> From the original framework, our prototype visualizes advanced derived benchmarks, including <strong>Composite Score</strong>, <strong>Gait Symmetry Index (GSI)</strong>, <strong>Symmetry Ratio</strong>, <strong>Step Time CV</strong>, <strong>Cadence</strong>, and <strong>Gait Index (L/R)</strong>. <em>(Synthetic sets of these metrics are used in the live prototype).</em></li>
+    </ul> -->
+  </section>
+
+  <!-- 5. Changelog -->
+  <section id="changelog" style="margin-bottom: 3rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">5. Changelog (Evolution from Sketches)</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+      
+      <!-- Patient Features -->
+      <div style="background-color: #f0fdf4; padding: 1.5rem; border-radius: 8px; border: 1px solid #bbf7d0;">
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: #166534; margin-bottom: 1rem;">Patient Dashboard Updates</h3>
+        <h5>2026-03-04</h5>
+        <ul style="list-style-type: disc; margin-left: 1.2rem; line-height: 1.5; color: #334155; font-size: 0.95rem; display: flex; flex-direction: column; gap: 0.5rem;">
+          <li><strong>Added:</strong> Something</li>
+        </ul>
+      </div>
+
+      <!-- Researcher Features -->
+      <div style="background-color: #eff6ff; padding: 1.5rem; border-radius: 8px; border: 1px solid #bfdbfe;">
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: #1e40af; margin-bottom: 1rem;">Researcher Dashboard Updates</h3>
+        <h5>2026-03-04</h5>
+        <ul style="list-style-type: disc; margin-left: 1.2rem; line-height: 1.5; color: #334155; font-size: 0.95rem; display: flex; flex-direction: column; gap: 0.5rem;">
+          <li><strong>Added:</strong> Something</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Project Resources -->
+  <section id="project-resources" style="border-top: 1px solid #e2e8f0; padding-top: 2rem;">
+    <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; margin-bottom: 1rem;">6. Project Resources</h2>
+    <ul style="list-style-type: none; padding: 0; line-height: 1.8;">
+      <li>
+        <span style="font-weight: 600; color: #0f172a;">Source Code:</span> 
+        <a href="https://github.com/TN-js/VisGait" target="_blank" style="color: #2563eb; text-decoration: none;">GitHub - TN-js/VisGait</a>
+      </li>
+    </ul>
+  </section>
+
+</main>
 
     <script type="module" src="js/about-view.js"></script>
 </body>
