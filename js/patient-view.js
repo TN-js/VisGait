@@ -525,6 +525,32 @@ function renderLineChart(data, target = "#line-chart", defaultW = 700, h = 300) 
     gy.selectAll('line').style('stroke', '#e2e8f0');
     gy.selectAll('path').style('stroke', '#94a3b8');
 
+    // Draw healthy threshold line at composite score = 80 (dotted)
+    try {
+        const healthyVal = 80;
+        const yDom = y.domain();
+        if (healthyVal >= Math.min(...yDom) && healthyVal <= Math.max(...yDom)) {
+            svg.append('line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', y(healthyVal))
+                .attr('y2', y(healthyVal))
+                .attr('stroke', '#10b981')
+                .attr('stroke-width', 1.25)
+                .attr('stroke-dasharray', '4,4')
+                .style('opacity', 0.9);
+
+            svg.append('text')
+                .attr('x', width)
+                .attr('y', y(healthyVal) - 6)
+                .attr('text-anchor', 'end')
+                .style('font-size', '12px')
+                .style('fill', '#065f46')
+                .style('font-weight', 700)
+                .text('Healthy (80)');
+        }
+    } catch (e) { /* ignore if axis not available */ }
+
     // Axis labels (slightly larger for readability)
     svg.append('text')
         .attr('class', 'axis-label x-axis-label')
