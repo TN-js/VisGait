@@ -112,13 +112,7 @@
   <!-- 4. Data -->
   <section id="data" style="margin-bottom: 3rem;">
     <h2 style="font-size: 1.8rem; font-weight: 700; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">4. Data Provenance & Abstraction</h2>
-    <!-- <ul style="list-style-type: disc; margin-left: 1.5rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.5rem;">
-      <li><strong>Origin:</strong> Based on the framework of "Perennial Elderly User Activity Data & Labelled Peaks" (Neatsens).</li>
-      <li><strong>General Description:</strong> Resistance signals from knee braces collected from elderly patients engaging in 4 physical activities (Stair Climbing, Sit-to-Stand, Timed Up-and-Go, Walking).</li>
-      <li><strong>Original Variables:</strong> <code>User_ID</code>, <code>Session_ID</code>, <code>Activity</code> (Categorical); <code>Time_Sec</code>, <code>Raw_Reading</code> (Quantitative).</li>
-      <li><strong>Transformation:</strong> Python scripts (Pandas/NumPy) are used to scale, clean, and normalize the raw amplitude. The <code>Peak_Index</code> is extracted to identify cyclic gait patterns.</li>
-      <li><strong>Derived Clinical Metrics (Prototype):</strong> From the original framework, our prototype visualizes advanced derived benchmarks, including <strong>Composite Score</strong>, <strong>Gait Symmetry Index (GSI)</strong>, <strong>Symmetry Ratio</strong>, <strong>Step Time CV</strong>, <strong>Cadence</strong>, and <strong>Gait Index (L/R)</strong>. <em>(Synthetic sets of these metrics are used in the live prototype).</em></li>
-    </ul> -->
+
   </section>
 
   <!-- 5. Changelog -->
@@ -129,9 +123,16 @@
       <!-- Patient Features -->
       <div style="background-color: #f0fdf4; padding: 1.5rem; border-radius: 8px; border: 1px solid #bbf7d0;">
         <h3 style="font-size: 1.2rem; font-weight: 700; color: #166534; margin-bottom: 1rem;">Patient Dashboard Updates</h3>
-        <h5>2026-03-04</h5>
+        <h5>Final Presentation</h5>
         <ul style="list-style-type: disc; margin-left: 1.2rem; line-height: 1.5; color: #334155; font-size: 0.95rem; display: flex; flex-direction: column; gap: 0.5rem;">
-          <li><strong>Added:</strong> Something</li>
+          <li><strong>Changed:</strong> Scale of weekly overview to dynamically change with the minimum and maximum values to emphasize trend.</li>
+          <li><strong>Changed:</strong> Tiles size and arranagement to fit everything in a more compact way to avoid scrolling.</li>
+          <li><strong>Changed:</strong> Radar charts for activity details now are plotted with percentile instead of normalized values using min and max. This avoid distortion due to outliers.</li>
+          <li><strong>Fixed:</strong> All metrics now show correctly on the radar chart.</li>
+        </ul>
+        <h5>2026-03-16</h5>
+        <ul style="list-style-type: disc; margin-left: 1.2rem; line-height: 1.5; color: #334155; font-size: 0.95rem; display: flex; flex-direction: column; gap: 0.5rem;">
+          <li><strong>Added:</strong> A bar chart showing percentage changes from mean for metrics under activity details. Addressing the feedback of changing the scale of the radar charts. The radar charts' scale remained unchanged as they represents percentiles, and scales from 0 to 100 shows the quartiles easily.</li>
         </ul>
       </div>
 
@@ -153,6 +154,18 @@
       <li>
         <span style="font-weight: 600; color: #0f172a;">Source Code:</span> 
         <a href="https://github.com/TN-js/VisGait" target="_blank" style="color: #2563eb; text-decoration: none;">GitHub - TN-js/VisGait</a>
+      </li>
+      <li>
+        <span style="font-weight: 600; color: #0f172a;">Proposal Presentation:</span> 
+        <a href="https://docs.google.com/presentation/d/1yXMks2teuyLv_T2dyRLIfncBSLzHVV-ie-0U1XoPZWE/edit?slide=id.g3c2ec58f8aa_2_98#slide=id.g3c2ec58f8aa_2_98" target="_blank" style="color: #2563eb; text-decoration: none;">Google Slides Presentation Slides</a>
+      </li>
+      <li>
+        <span style="font-weight: 600; color: #0f172a;">Sketches Presentation:</span> 
+        <a href="https://www.canva.com/design/DAHBCP5IWrk/De4llAQyx43CkCpfOMmkMw/edit" target="_blank" style="color: #2563eb; text-decoration: none;">Canva Presentation Slides</a>
+      </li>
+      <li>
+        <span style="font-weight: 600; color: #0f172a;">Final Presentation:</span> 
+        <a href="https://tn-js.github.io/VisGait/index.html" target="_blank" style="color: #2563eb; text-decoration: none;">Canva Presentation Slides</a>
       </li>
     </ul>
   </section>
