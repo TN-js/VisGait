@@ -92,6 +92,9 @@ const ACTIVITY_COLORS = { "SC": "#ef4444", "STS": "#f59e0b", "TUG": "#10b981", "
 // Composite (aggregated) series color
 const COMPOSITE_COLOR = "#7c3aed";
 
+// Toggle: when true, right-side metrics view becomes a bar-chart comparing to mean
+let showMetricBarView = false;
+
 const tooltip = d3.select("body").append("div").attr("class", "d3-tooltip").style("opacity", 0);
 const scoreColorScale = d3.scaleLinear()
     .domain([0, 50, 80, 100])
@@ -323,7 +326,7 @@ function updateSummaryHeader(data) {
 }
 
 /**
- * 4. NEW VISUALIZATION: WEEKLY ACTIVITY BARS
+ * 4. WEEKLY ACTIVITY BARS
  */
 function renderActivityBars(week, target = "#activity-bars-container") {
     const container = d3.select(target);
@@ -662,14 +665,22 @@ function renderRadarCharts(mode = 'both', isEnlarged = false) {
                 isMean: true
             };
         });
-        
-        drawRadar(targetMet, [{ values: metricValues }], null, size, {
-            showMetricTooltipDetails: true,
-            normalizationLabel: 'Percentile',
-            meanData: meanMetricValues,
-            meanColor: '#94a3b8',
-            meanPointColorMode: 'activity'
-        });
+        // ensure toggle exists
+        ensureMetricsViewToggle();
+
+        if (showMetricBarView) {
+            drawMetricsBarChart(targetMet, metricValues, meanMetricValues, size, {
+                showMetricTooltipDetails: true
+            });
+        } else {
+            drawRadar(targetMet, [{ values: metricValues }], null, size, {
+                showMetricTooltipDetails: true,
+                normalizationLabel: 'Percentile',
+                meanData: meanMetricValues,
+                meanColor: '#94a3b8',
+                meanPointColorMode: 'activity'
+            });
+        }
     }
 
     // draw activity breakdown radar (if requested)
@@ -741,6 +752,145 @@ function wrapSvgText(selection, maxWidth, lineHeightEm = 1.05, maxLines = 3) {
                     .text(words[index]);
             }
         }
+    });
+}
+
+// Add a small toggle next to metrics title to switch to bar view
+function ensureMetricsViewToggle() {
+    try {
+        const attach = (titleId) => {
+            const titleEl = document.getElementById(titleId);
+            if (!titleEl) return;
+            if (document.getElementById('metrics-bar-toggle-' + titleId)) return;
+
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'inline-flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '8px';
+            wrapper.style.marginLeft = '12px';
+
+            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'metrics-bar-toggle-' + titleId; cb.checked = showMetricBarView;
+            const lbl = document.createElement('label'); lbl.htmlFor = cb.id; lbl.textContent = 'Bar view'; lbl.style.fontSize = '13px'; lbl.style.color = '#475569';
+            cb.addEventListener('change', (e) => { showMetricBarView = !!e.target.checked; try { renderRadarCharts(); } catch (err) {} });
+
+            wrapper.appendChild(cb); wrapper.appendChild(lbl);
+            titleEl.appendChild(wrapper);
+        };
+        attach('radar-metrics-title');
+        attach('modal-radar-metrics-title');
+    } catch (e) { /* ignore */ }
+}
+
+// Draw horizontal bars comparing patient metric actual values to mean values
+function drawMetricsBarChart(containerId, metricValues, meanMetricValues, size, options = {}) {
+    const container = d3.select(containerId);
+    container.selectAll('*').remove();
+    // Merge values by rawMetricKey (or axis text) to compute percent change
+    const rows = metricValues.map((m, i) => {
+        const mean = meanMetricValues[i] || { actualValue: 0, unit: m.unit };
+        const meanVal = Number(mean.actualValue) || 0;
+        const actualVal = Number(m.actualValue) || 0;
+        let pctChange = null;
+        if (meanVal === 0) pctChange = NaN; else pctChange = ((actualVal - meanVal) / Math.abs(meanVal)) * 100;
+        return { axis: m.axis || m.rawMetricKey || ('Metric ' + i), rawMetricKey: m.rawMetricKey, unit: m.unit || mean.unit || '', actual: actualVal, mean: meanVal, pct: pctChange };
+    });
+
+    // compute scale reference for width based on max absolute percent change (ignore NaN)
+    const absPcts = rows.map(r => Number.isFinite(r.pct) ? Math.abs(r.pct) : 0);
+    const maxAbsPct = Math.max(1, d3.max(absPcts));
+
+    // container: center contents
+    const outer = container.append('div').style('display','flex').style('flex-direction','column').style('align-items','center').style('justify-content','center').style('gap','14px').style('padding','8px').style('width','100%');
+
+    rows.forEach(r => {
+        const block = outer.append('div').style('display','flex').style('flex-direction','column').style('align-items','center').style('width','100%');
+        // Title above bar centered (with tooltip handlers)
+        const titleSel = block.append('div').text(r.axis).style('font-weight','700').style('color','#334155').style('margin-bottom','6px').style('text-align','center');
+        titleSel.on('mouseover', (e) => {
+            const desc = getMetricTooltip(r.rawMetricKey, r.axis);
+            const actualFormatted = Number.isFinite(r.actual) ? formatMetricValueWithUnit(r.actual, r.unit) : 'N/A';
+            const meanFormatted = Number.isFinite(r.mean) ? formatMetricValueWithUnit(r.mean, r.unit) : 'N/A';
+            const pctText = Number.isFinite(r.pct) ? ((r.pct >= 0 ? '+' : '') + r.pct.toFixed(1) + '%') : 'N/A';
+            const html = `<strong>${r.axis}</strong><br/><div style="color:#475569;font-size:12px;margin-top:6px;margin-bottom:6px;">${desc}</div><div>Value: ${actualFormatted}</div><div>Mean: ${meanFormatted}</div><div>Change: ${pctText}</div>`;
+            tooltip.style('position', 'absolute').style('pointer-events', 'none').style('background', '#ffffff').style('color', '#0f172a').style('padding', '6px 8px').style('border', '1px solid #e2e8f0').style('border-radius', '6px').style('font-size', '13px').style('min-width','120px');
+            tooltip.html(html).style('opacity', 1).style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        }).on('mousemove', (e) => {
+            tooltip.style('left', (e.pageX + 10) + 'px').style('top', (e.pageY + 10) + 'px');
+        }).on('mouseout', () => { tooltip.style('opacity', 0); });
+
+        const row = block.append('div').style('display','flex').style('align-items','center').style('gap','12px').style('width','100%');
+        // left spacer for values
+        row.append('div').style('flex','0 0 120px').style('text-align','right').html(`<div style="font-weight:700;color:#0f172a">${Number.isFinite(r.actual) ? formatMetricValueWithUnit(r.actual, r.unit) : 'N/A'}</div>`);
+
+        // bar track centered with zero at middle
+        const track = row.append('div')
+            .style('flex','1')
+            .style('background','#f8fafc')
+            .style('height','26px')
+            .style('border-radius','8px')
+            .style('position','relative')
+            .style('overflow','visible')
+            .style('display','flex')
+            .style('align-items','center')
+            .style('justify-content','center')
+            .style('min-width','260px')
+            .style('border','1px solid #e6eef6');
+
+        // center marker (zero) with label
+        track.append('div')
+            .style('position','absolute')
+            .style('left','50%')
+            .style('top','3px')
+            .style('bottom','3px')
+            .style('width','3px')
+            .style('background','#cbd5e1')
+            .style('transform','translateX(-50%)');
+
+        // (removed center label '0%' to avoid overlapping titles)
+
+        const pct = Number.isFinite(r.pct) ? r.pct : 0;
+        const halfWidthPct = Math.min(50, (Math.abs(pct) / Math.max(1, maxAbsPct)) * 50); // mapped to half-track
+        const minVisiblePct = 2; // ensure tiny bars are visible
+
+        if (Number.isFinite(r.pct) && r.pct > 0) {
+            // positive: green bar from center to right
+            track.append('div')
+                .style('position','absolute')
+                .style('left','50%')
+                .style('height','16px')
+                .style('top','5px')
+                .style('bottom','5px')
+                .style('width', Math.max(minVisiblePct, halfWidthPct) + '%')
+                .style('background','#10b981')
+                .style('border-radius','0 8px 8px 0')
+                .style('box-shadow','0 1px 2px rgba(0,0,0,0.04)');
+        } else if (Number.isFinite(r.pct) && r.pct < 0) {
+            // negative: red bar from center to left
+            track.append('div')
+                .style('position','absolute')
+                .style('right','50%')
+                .style('height','16px')
+                .style('top','5px')
+                .style('bottom','5px')
+                .style('width', Math.max(minVisiblePct, halfWidthPct) + '%')
+                .style('background','#ef4444')
+                .style('border-radius','8px 0 0 8px')
+                .style('box-shadow','0 1px 2px rgba(0,0,0,0.04)');
+        } else {
+            // neutral/undefined: small grey marker at center
+            track.append('div')
+                .style('position','absolute')
+                .style('left','50%')
+                .style('height','8px')
+                .style('top','9px')
+                .style('width','8px')
+                .style('background','#94a3b8')
+                .style('border-radius','50%')
+                .style('transform','translateX(-50%)');
+        }
+
+        // percent badge on right side
+        row.append('div').style('flex','0 0 100px').style('text-align','left').html(`<div style="font-weight:700;color:${Number.isFinite(r.pct) ? (r.pct>=0? '#065f46':'#7f1d1d') : '#475569'}">${Number.isFinite(r.pct) ? ((r.pct>=0?'+':'') + r.pct.toFixed(1) + '%') : 'N/A'}</div>`);
     });
 }
 
